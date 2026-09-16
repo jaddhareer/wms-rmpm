@@ -8,9 +8,8 @@ function renderNavbar(){
         <button class="nav-btn" data-page="dashboard">Dashboard</button><hr>
         <button class="nav-btn" data-page="inbound">Inbound</button>
         <button class="nav-btn" data-page="outbound">Outbound</button>
-        <button class="nav-btn" data-page="bintobin">Bin to Bin</button><hr>
-        <button class="nav-btn" data-page="retur">Retur</button>
-        <button class="nav-btn" data-page="mutasi">Mutasi</button><hr>
+        <button class="nav-btn" data-page="bintobin">Bin to Bin</button>
+        <button class="nav-btn" data-page="retur">Retur</button><hr>
         <button class="nav-btn" data-page="transactions">Histori Transaksi</button>
         <button class="nav-btn" data-page="stock">Stock Overview</button><hr>
         <button class="nav-btn" data-page="user">User</button>
@@ -56,10 +55,6 @@ function navigateTo(page){
     } else if(page === 'retur'){
         setContent(`
             <h1>INI HALAMAN retur</h1>
-        `)
-    } else if(page === 'mutasi'){
-        setContent(`
-            <h1>INI HALAMAN mutasi</h1>
         `)
     } else if(page === 'transactions'){
         setContent(`
