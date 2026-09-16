@@ -1,0 +1,1 @@
+<!-- file untuk function-function yang diperlukan untuk membantu aplikasi seperti generate transaction ID -->
