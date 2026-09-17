@@ -1,4 +1,6 @@
 import { setContent } from "./utilities/tools.js";
+import { inbound } from "./pages/Inbound.js";
+import { bintobin } from "./pages/bintobin.js";
 
 const app = document.getElementById('app');
 
@@ -41,17 +43,13 @@ function navigateTo(page){
             <h1>INI HALAMAN dashboard</h1>
         `)
     } else if(page === 'inbound'){
-        setContent(`
-            <h1>INI HALAMAN inbound</h1>
-        `)
+        inbound();
     } else if(page === 'outbound'){
         setContent(`
             <h1>INI HALAMAN outbound</h1>
         `)
     } else if(page === 'bintobin'){
-        setContent(`
-            <h1>INI HALAMAN bin to bin</h1>
-        `)
+        bintobin();
     } else if(page === 'retur'){
         setContent(`
             <h1>INI HALAMAN retur</h1>
