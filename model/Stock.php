@@ -22,9 +22,16 @@ class Stock{
     public function setRemark($remark)             {$this->remark = $remark;}
 
     public function save(){
-        $query = 'INSERT INTO ' . $this->table . " (id, item_code, exp_date, pallet_number, bin, qty_actual, qty_sap, remark, updated_at) VALUES ('', :item_code, :exp_date, :pallet_number, :bin, :qty_actual, :qty_sap, :remark, '')";
+        // id (AUTO_INCREMENT) dan updated_at (DEFAULT CURRENT_TIMESTAMP) sengaja tidak
+        // disebut di sini -- biarkan database yang isi otomatis, jangan kirim '' ke kolom itu.
+        $query = 'INSERT INTO ' . $this->table . '
+            (item_code, exp_date, pallet_number, bin, qty_actual, qty_sap, remark)
+            VALUES
+            (:item_code, :exp_date, :pallet_number, :bin, :qty_actual, :qty_sap, :remark)';
+
         $stmt = $this->conn->prepare($query);
-        $stmt->execute([
+
+        return $stmt->execute([
             ':item_code' => $this->itemCode,
             ':exp_date' => $this->expDate,
             ':pallet_number' => $this->palletNumber,

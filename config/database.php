@@ -1,5 +1,4 @@
-<!-- file untuk koneksi database -->
- <?php
+<?php
 
 class Database {
     private $host = "localhost";
@@ -21,5 +20,4 @@ class Database {
 
         return $this->conn;
     }
-
 }
