@@ -1,6 +1,6 @@
 <?php
 
-class Stock{
+class Stock {
     private $conn;
     private $table = 'stock';
 
@@ -19,62 +19,91 @@ class Stock{
     public function setPalletNumber($palletNumber) {$this->palletNumber = $palletNumber;}
     public function setBin($bin)                   {$this->bin = $bin;}
     public function setQtyActual($qtyActual)       {$this->qtyActual = $qtyActual;}
-    public function setConversionFactor($conversionFactor) {$this->conversionFactor = $conversionFactor;}
+    public function setConversionFactor($factor)   {$this->conversionFactor = $factor;}
     public function setQtySap($qtySap)             {$this->qtySap = $qtySap;}
     public function setRemark($remark)             {$this->remark = $remark;}
 
-    public function stockin(){
-        // id (AUTO_INCREMENT) dan updated_at (DEFAULT CURRENT_TIMESTAMP) sengaja tidak
-        // disebut di sini -- biarkan database yang isi otomatis, jangan kirim '' ke kolom itu.
+    // Pallet baru dari Inbound. INSERT biasa: kalau sampai duplikat, itu tanda bug,
+    // dan lebih baik gagal keras (lalu rollback) daripada diam-diam menimpa stok lama.
+    public function stockin() {
         $query = 'INSERT INTO ' . $this->table . '
             (item_code, exp_date, pallet_number, bin, qty_actual, conversion_factor, qty_sap, remark)
             VALUES
-            (:item_code, :exp_date, :pallet_number, :bin, :qty_actual, :conversion_factor, :qty_sap, :remark)
-            ON DUPLICATE KEY UPDATE
-            qty_actual = :qty_actual,
-            conversion_factor = :conversion_factor,
-            qty_sap = :qty_sap';
+            (:item_code, :exp_date, :pallet_number, :bin, :qty_actual, :conversion_factor, :qty_sap, :remark)';
 
         $stmt = $this->conn->prepare($query);
 
         return $stmt->execute([
-            ':item_code' => $this->itemCode,
-            ':exp_date' => $this->expDate,
-            ':pallet_number' => $this->palletNumber,
-            ':bin' => $this->bin,
-            ':qty_actual' => $this->qtyActual,
+            ':item_code'         => $this->itemCode,
+            ':exp_date'          => $this->expDate,
+            ':pallet_number'     => $this->palletNumber,
+            ':bin'               => $this->bin,
+            ':qty_actual'        => $this->qtyActual,
             ':conversion_factor' => $this->conversionFactor,
-            ':qty_sap' => $this->qtySap,
-            ':remark' => $this->remark
+            ':qty_sap'           => $this->qtySap,
+            ':remark'            => $this->remark,
         ]);
     }
 
-    public function stockout(){
-        $query = 'UPDATE ' . $this->table . '
-            SET qty_actual = qty_actual - :qty_actual,
-                qty_sap = qty_sap - :qty_sap
-            WHERE item_code = :item_code AND exp_date = :exp_date AND pallet_number = :pallet_number';
-
-        $stmt = $this->conn->prepare($query);
-
-        return $stmt->execute([
-            ':item_code' => $this->itemCode,
-            ':exp_date' => $this->expDate,
-            ':pallet_number' => $this->palletNumber,
-            ':qty_actual' => $this->qtyActual,
-            ':qty_sap' => $this->qtySap
-        ]);
-    }
-
-    public function getStockByItemCode($itemCode){
-        $query = 'SELECT s.*, t.description FROM ' . $this->table . ' s
-                  JOIN material_master t ON s.item_code = t.item_code  
-            WHERE s.item_code = :item_code';
+    // Ambil satu pallet (butuh setItemCode, setExpDate, setPalletNumber).
+    // FOR UPDATE mengunci baris ini sampai commit/rollback, supaya data yang dibaca
+    // (bin, sisa qty) tidak berubah oleh proses lain sebelum kita selesai.
+    public function findPallet() {
+        $query = 'SELECT * FROM ' . $this->table . '
+            WHERE item_code = :item_code AND exp_date = :exp_date AND pallet_number = :pallet_number
+            FOR UPDATE';
 
         $stmt = $this->conn->prepare($query);
         $stmt->execute([
-            ':item_code' => $itemCode
+            ':item_code'     => $this->itemCode,
+            ':exp_date'      => $this->expDate,
+            ':pallet_number' => $this->palletNumber,
         ]);
+
+        return $stmt->fetch(PDO::FETCH_ASSOC); // false kalau tidak ada
+    }
+
+    // Kurangi stok. Return true kalau berhasil, false kalau stok tidak cukup / pallet tidak ada.
+    // Syarat qty_actual >= :qty_check membuat "cek" dan "kurangi" jadi SATU langkah.
+    // Placeholder dibedakan (:qty_out dan :qty_check) walau nilainya sama, karena
+    // PDO tidak selalu mengizinkan satu nama placeholder dipakai dua kali.
+    public function stockout(): bool {
+        $query = 'UPDATE ' . $this->table . '
+            SET qty_actual = qty_actual - :qty_out,
+                qty_sap    = qty_sap - :qty_sap
+            WHERE item_code = :item_code
+              AND exp_date = :exp_date
+              AND pallet_number = :pallet_number
+              AND qty_actual >= :qty_check';
+
+        $stmt = $this->conn->prepare($query);
+        $stmt->execute([
+            ':qty_out'       => $this->qtyActual,
+            ':qty_sap'       => $this->qtySap,
+            ':item_code'     => $this->itemCode,
+            ':exp_date'      => $this->expDate,
+            ':pallet_number' => $this->palletNumber,
+            ':qty_check'     => $this->qtyActual,
+        ]);
+
+        return $stmt->rowCount() > 0;
+    }
+
+    // Semua pallet yang masih ada isinya untuk satu item, urut FEFO
+    // (expired paling dekat dulu, lalu nomor pallet). Pallet qty 0 tidak ikut.
+    // conversion_factor diambil dari stock (faktor pallet itu sendiri), bukan default master.
+    public function getStockByItemCode($itemCode) {
+        $query = 'SELECT s.item_code, m.description, s.exp_date, s.pallet_number, s.bin,
+                         s.qty_actual, s.conversion_factor, s.qty_sap, s.remark,
+                         m.uom_fisik, m.uom_sap
+                  FROM ' . $this->table . ' s
+                  JOIN material_master m ON s.item_code = m.item_code
+                  WHERE s.item_code = :item_code AND s.qty_actual > 0
+                  ORDER BY s.exp_date ASC, s.pallet_number ASC';
+
+        $stmt = $this->conn->prepare($query);
+        $stmt->execute([':item_code' => $itemCode]);
+
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 }

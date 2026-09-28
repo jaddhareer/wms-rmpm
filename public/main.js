@@ -2,6 +2,7 @@ import { setContent } from "./utilities/tools.js";
 import { inbound } from "./pages/Inbound.js";
 import { bintobin } from "./pages/bintobin.js";
 import { outbound } from "./pages/outbound.js";
+import { retur } from "./pages/retur.js";
 
 const app = document.getElementById('app');
 

@@ -4,41 +4,59 @@ header('Content-Type: application/json');
 
 require_once dirname(__DIR__) . '/config/bootstrap.php';
 
+$items = readJsonBody();
+
+if (count($items) === 0) {
+    jsonResponse(['success' => false, 'error' => 'Tidak ada data pallet yang dikirim'], 400);
+}
+
 $db = new Database();
 $conn = $db->getConnection();
 
-$items = json_decode(file_get_contents('php://input'), true);
-
-if (!is_array($items) || count($items) === 0) {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'Tidak ada data pallet yang dikirim']);
-    exit;
-}
-
-// TODO: ganti dengan user_id dari sesi login begitu User Management sudah ada
+// TODO: ganti dengan user_id dari sesi login begitu fitur login sudah ada
 $userId = 1;
-$transactionCode = generateTxnId($conn, 'INBOUND');
 
-// Asumsi yang saya ambil (koreksi kalau maunya beda): satu kali submit dari state
-// dianggap satu kesatuan -- kalau satu pallet gagal, semua di-rollback, operator
-// submit ulang semuanya. Makanya beginTransaction() di luar loop, bukan di dalam.
+// Satu submit = satu dokumen = satu database transaction.
+// Kalau satu pallet gagal, semua di-rollback.
 try {
     $conn->beginTransaction();
 
-    foreach ($items as $item) {
-        $itemCode  = sanitize($item['item_code']);
-        $expDate   = sanitize($item['exp_date']);
-        $source    = sanitize($item['source']);
-        $qtyActual = sanitize((float) $item['qty_actual']);
-        $conversionFactor = sanitize((float) $item['conversion_factor']);
-        $qtySap    = sanitize((float) $item['qty_sap']);
-        $destination = 'Warehouse RMPM';
-        $bin       = sanitize($item['bin']);
-        $remark    = sanitize($item['remark'] ?? '');
+    $transactionCode = generateTxnId($conn, 'INBOUND');
 
-        // Nomor pallet dihitung ULANG di server (tidak percaya nomor yang sudah nempel
-        // dari frontend) -- pakai $conn yang sama supaya pallet yang baru saja di-insert
-        // di iterasi sebelumnya, dalam transaction yang sama, ikut kehitung.
+    foreach ($items as $index => $item) {
+        $row = $index + 1; // nomor baris untuk pesan error ke operator
+
+        $itemCode  = sanitize($item['item_code'] ?? '');
+        $expDate   = sanitize($item['exp_date'] ?? '');
+        $source    = sanitize($item['source'] ?? '');
+        $bin       = strtoupper(sanitize($item['bin'] ?? '')) ?: 'STAGE';
+        $remark    = sanitize($item['remark'] ?? '');
+        $qtyActual = (float) ($item['qty_actual'] ?? 0);
+        $conversionFactor = (float) ($item['conversion_factor'] ?? 0);
+
+        if ($itemCode === '' || $expDate === '') {
+            throw new Exception("Baris $row: item code dan expired date wajib diisi");
+        }
+        if ($qtyActual <= 0) {
+            throw new Exception("Baris $row: quantity harus lebih dari 0");
+        }
+
+        $material = new Material($conn);
+        $material->setItemCode($itemCode);
+        if (!$material->selectMaterial()) {
+            throw new Exception("Baris $row: item code $itemCode tidak ada di material master");
+        }
+
+        // Faktor dari operator dipercaya (bisa beda dari default untuk barang tertentu).
+        // Kalau kosong/tidak valid, pakai default material master.
+        if ($conversionFactor <= 0) {
+            $conversionFactor = (float) $material->getConversionFactor();
+        }
+
+        // qty_sap tetap dihitung di server dari faktor itu, bukan diambil mentah dari frontend.
+        $qtySap = round($qtyActual * $conversionFactor, 3);
+
+        // Nomor pallet dihitung ulang di server, pakai $conn yang sama.
         $palletNumber = generatePalletNumber($conn, $itemCode, $expDate);
 
         $stock = new Stock($conn);
@@ -61,20 +79,19 @@ try {
         $transaction->setQtyActual($qtyActual);
         $transaction->setQtySap($qtySap);
         $transaction->setSource($source);
-        $transaction->setDestination($destination);
         $transaction->setDestinationBin($bin);
         $transaction->setUserId($userId);
         $transaction->setRemark($remark);
         $transaction->save();
-
     }
 
     $conn->commit();
 
-    echo json_encode(['success' => true, 'transaction_code' => $transactionCode]);
+    jsonResponse(['success' => true, 'transaction_code' => $transactionCode]);
 
 } catch (Exception $e) {
-    $conn->rollBack();
-    http_response_code(500);
-    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    if ($conn->inTransaction()) {
+        $conn->rollBack();
+    }
+    jsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
 }

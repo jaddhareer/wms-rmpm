@@ -1,32 +1,36 @@
-import { setContent, q } from "../utilities/tools.js";
+import { setContent, q, escapeHtml } from "../utilities/tools.js";
 
-// State module ini punya scope sendiri (tidak bocor ke global, tidak diekspor) --
-// aman dipakai sebagai "keranjang" pallet yang sudah di-Add tapi belum di-submit.
+// Pallet yang sudah di-Add tapi belum di-submit.
 let state = [];
 
+// Data material master untuk item code yang sedang diketik (hasil fetch).
+let currentMaterial = null;
+
 export function inbound(){
+    currentMaterial = null;
+
     setContent(`
-        <h2>Inbound Plant</h2>
+        <h2>Inbound</h2>
         <div>
-            <label for="source">Supplier</label>        <input type="text" id="source"><hr>
-            <label for="item-code">Item Code</label>    <input type="text" id="item-code"><br>
-            <label for="item-name">Item Name</label>    <input type="text" id="item-name" disabled><br>
-            <label for="exp-date">Expired Date</label>  <input type="date" id="exp-date"><br>
-            <label for="qty-fisik">Quantity</label>     <input type="number" id="qty-fisik"><br>
-            <label for="uom-fisik">Uom</label>          <input type="text" id="uom-fisik"><br>
-            <label for="conversion-factor">Conversion Factor</label> <input type="number" id="conversion-factor" step="0.0001"><br>
-            <label for="qty-sap">GR Qty</label>         <input type="number" id="qty-sap" disabled><br>
-            <label for="uom-sap">GR UoM</label>         <input type="text" id="uom-sap" disabled><hr>
-            <label for="bin">Bin</label>                <input type="text" id="bin"><br>
-            <label for="remark">Remark</label>          <input type="text" id="remark"><hr>
+            <label for="source">Supplier</label>                     <input type="text" id="source"><hr>
+            <label for="item-code">Item Code</label>                 <input type="text" id="item-code"><br>
+            <label for="item-name">Item Name</label>                 <input type="text" id="item-name" disabled><br>
+            <label for="exp-date">Expired Date</label>               <input type="date" id="exp-date"><br>
+            <label for="qty-fisik">Quantity</label>                  <input type="number" id="qty-fisik" min="0" step="any">
+                                                                     <input type="text" id="uom-fisik" disabled size="6"><br>
+            <label for="conversion-factor">Conversion Factor</label> <input type="number" id="conversion-factor" min="0" step="any"><br>
+            <label for="qty-sap">GR Qty</label>                      <input type="text" id="qty-sap" disabled>
+                                                                     <input type="text" id="uom-sap" disabled size="6"><hr>
+            <label for="bin">Bin</label>                             <input type="text" id="bin" placeholder="kosong = STAGE"><br>
+            <label for="remark">Remark</label>                       <input type="text" id="remark"><hr>
             <button type="button" id="btn-add">Add</button>
         </div>
 
-        <table id="preview-table" border="1">
+        <table border="1">
             <thead>
                 <tr>
-                    <th>Item Code</th><th>Exp Date</th><th>Pallet</th>
-                    <th>Qty Fisik</th><th>Qty SAP</th><th>Bin</th>
+                    <th>Item Code</th><th>Description</th><th>Supplier</th><th>Exp Date</th><th>Pallet</th>
+                    <th>Qty</th><th>UoM</th><th>Faktor</th><th>Qty SAP</th><th>UoM SAP</th><th>Bin</th><th>Remark</th><th></th>
                 </tr>
             </thead>
             <tbody id="preview-body"></tbody>
@@ -35,62 +39,94 @@ export function inbound(){
         <button type="button" id="btn-submit">Submit</button>
     `);
 
-    // Dipasang SETELAH setContent, karena setContent mengganti innerHTML --
-    // elemen lama (dan listener lamanya) sudah dibuang, ini pasang ke elemen yang baru.
     q('#btn-add').addEventListener('click', handleAdd);
     q('#btn-submit').addEventListener('click', handleSubmit);
-    q('#item-code').addEventListener('input', () => autoFillItemDetails(q('#item-code').value.trim()));
-    q('#qty-fisik').addEventListener('input', calculateQtySAP);
-    q('#conversion-factor').addEventListener('input', calculateQtySAP);
+    q('#item-code').addEventListener('input', handleItemCodeInput);
+    q('#qty-fisik').addEventListener('input', calculateQtySap);
+    q('#conversion-factor').addEventListener('input', calculateQtySap);
+    // Satu listener di tbody untuk semua tombol hapus (event delegation),
+    // karena baris-baris di dalamnya dibuat ulang setiap renderPreview().
+    q('#preview-body').addEventListener('click', handleDeleteRow);
+
     renderPreview();
 }
 
-async function autoFillItemDetails(itemCode){
-    if (itemCode.length === 9) {
-        const url = `/wms-rmpm/controller/MaterialController.php?item_code=${encodeURIComponent(itemCode)}`;
-        const res = await fetch(url);
-        const data = await res.json();
-        q('#item-name').value = data.item_name || '';
-        q('#uom-fisik').value = data.uom_fisik || '';
-        q('#uom-sap').value = data.uom_sap || '';
-        q('#conversion-factor').value = parseFloat(data.conversion_factor) || 0;
+async function handleItemCodeInput(){
+    const itemCode = q('#item-code').value.trim();
+
+    currentMaterial = null;
+    fillMaterialFields();
+
+    if (itemCode.length !== 9) return;
+
+    const res = await fetch(`/wms-rmpm/controller/MaterialController.php?item_code=${encodeURIComponent(itemCode)}`);
+    const data = await res.json();
+
+    // Selama menunggu fetch, operator bisa sudah mengubah isi input
+    // atau pindah halaman. Jawaban yang sudah basi diabaikan.
+    if (q('#item-code')?.value.trim() !== itemCode) return;
+
+    if (!res.ok) {
+        alert(data.error);
+        return;
     }
+
+    currentMaterial = data;
+    fillMaterialFields();
 }
 
-function calculateQtySAP(){
-    const qtyFisik = parseFloat(q('#qty-fisik').value) || 0;
-    const conversionFactor = parseFloat(q('#conversion-factor').value) || 0;
-    const qtySAP = qtyFisik * conversionFactor;
-    q('#qty-sap').value = parseFloat(qtySAP).toFixed(4);
+function fillMaterialFields(){
+    q('#item-name').value         = currentMaterial?.item_name ?? '';
+    q('#uom-fisik').value         = currentMaterial?.uom_fisik ?? '';
+    q('#uom-sap').value           = currentMaterial?.uom_sap ?? '';
+    // Isi default dari material master. Operator boleh menimpanya untuk barang
+    // yang faktornya berbeda; nilai itu bertahan sampai item code diganti.
+    q('#conversion-factor').value = currentMaterial ? parseFloat(currentMaterial.conversion_factor) : '';
+    calculateQtySap();
+}
+
+// Hanya untuk ditampilkan ke operator. Server menghitung ulang dari qty x faktor.
+function calculateQtySap(){
+    const qty = parseFloat(q('#qty-fisik').value);
+    const factor = parseFloat(q('#conversion-factor').value);
+
+    q('#qty-sap').value = (qty > 0 && factor > 0) ? (qty * factor).toFixed(3) : '';
 }
 
 async function handleAdd(){
     const itemCode = q('#item-code').value.trim();
     const expDate  = q('#exp-date').value;
-    const qtyFisik = parseFloat(q('#qty-fisik').value) || 0;
+    const qtyFisik = parseFloat(q('#qty-fisik').value);
+    const conversionFactor = parseFloat(q('#conversion-factor').value);
 
-    if (!itemCode || !expDate) {
-        alert('Item Code dan Expired Date wajib diisi');
+    if (!currentMaterial || currentMaterial.item_code !== itemCode) {
+        alert('Item Code belum valid');
+        return;
+    }
+    if (!expDate) {
+        alert('Expired Date wajib diisi');
+        return;
+    }
+    if (!(qtyFisik > 0)) {
+        alert('Quantity harus lebih dari 0');
+        return;
+    }
+    if (!(conversionFactor > 0)) {
+        alert('Conversion Factor harus lebih dari 0');
         return;
     }
 
-    if (qtyFisik <= 0) {
-        alert('Quantity Fisik harus lebih dari 0');
-        return;
-    }
-
-    // Path absolut (bukan "../controller/...") karena fetch() di-resolve relatif ke
-    // URL halaman (index.html), BUKAN relatif ke lokasi file Inbound.js ini --
-    // beda dengan `import` di baris paling atas file ini, yang resolve-nya relatif
-    // ke file modul itu sendiri. Sesuaikan "/wms-rmpm/" kalau alias XAMPP-mu beda.
-    const url = `/wms-rmpm/controller/PalletController.php?item_code=${encodeURIComponent(itemCode)}&exp_date=${encodeURIComponent(expDate)}`;
-    const res = await fetch(url);
+    const res = await fetch(`/wms-rmpm/controller/PalletController.php?item_code=${encodeURIComponent(itemCode)}&exp_date=${encodeURIComponent(expDate)}`);
     const data = await res.json();
 
-    let palletNumber = data.pallet_number;
+    if (!res.ok) {
+        alert(data.error);
+        return;
+    }
 
-    // Server cuma tahu yang sudah ada di database. Pallet yang sudah di-Add ke state
-    // tapi belum di-submit belum ada di database -- disesuaikan di sini, di frontend.
+    // Server hanya tahu pallet yang sudah tersimpan. Pallet di state belum,
+    // jadi nomor yang sudah dipakai di state dilewati di sini.
+    let palletNumber = data.pallet_number;
     const usedNumbers = state
         .filter(row => row.item_code === itemCode && row.exp_date === expDate)
         .map(row => row.pallet_number);
@@ -100,39 +136,54 @@ async function handleAdd(){
     }
 
     state.push({
-        item_code: itemCode,
-        description: q('#item-name').value.trim(),
-        exp_date: expDate,
+        item_code:     itemCode,
+        description:   currentMaterial.item_name,
+        exp_date:      expDate,
         pallet_number: palletNumber,
-        source: q('#source').value.trim(),
-        qty_actual: parseFloat(q('#qty-fisik').value) || 0,
-        uom_fisik: q('#uom-fisik').value.trim(),
-        conversion_factor: parseFloat(q('#conversion-factor').value) || 0,
-        qty_sap: parseFloat(q('#qty-sap').value) || 0,
-        uom_sap: q('#uom-sap').value.trim(),
-        bin: q('#bin').value.trim() ? q('#bin').value.trim() : 'Stage',
-        remark: q('#remark').value.trim(),
+        source:        q('#source').value.trim(),
+        qty_actual:    qtyFisik,
+        uom_fisik:     currentMaterial.uom_fisik,
+        conversion_factor: conversionFactor,
+        qty_sap:       q('#qty-sap').value,
+        uom_sap:       currentMaterial.uom_sap,
+        bin:           q('#bin').value.trim().toUpperCase() || 'STAGE',
+        remark:        q('#remark').value.trim(),
     });
 
     q('#qty-fisik').value = '';
     q('#bin').value = '';
+    calculateQtySap();
     q('#qty-fisik').focus();
 
     renderPreview();
 }
 
 function renderPreview(){
-    const body = q('#preview-body');
-    body.innerHTML = state.map(row => `
+    q('#preview-body').innerHTML = state.map((row, index) => `
         <tr>
-            <td>${row.item_code}</td>
-            <td>${row.exp_date}</td>
-            <td>${row.pallet_number}</td>
-            <td>${row.qty_actual}</td>
-            <td>${row.qty_sap}</td>
-            <td>${row.bin}</td>
+            <td>${escapeHtml(row.item_code)}</td>
+            <td>${escapeHtml(row.description)}</td>
+            <td>${escapeHtml(row.source)}</td>
+            <td>${escapeHtml(row.exp_date)}</td>
+            <td>${escapeHtml(row.pallet_number)}</td>
+            <td>${escapeHtml(row.qty_actual)}</td>
+            <td>${escapeHtml(row.uom_fisik)}</td>
+            <td>${escapeHtml(row.conversion_factor)}</td>
+            <td>${escapeHtml(row.qty_sap)}</td>
+            <td>${escapeHtml(row.uom_sap)}</td>
+            <td>${escapeHtml(row.bin)}</td>
+            <td>${escapeHtml(row.remark)}</td>
+            <td><button type="button" class="btn-delete" data-index="${index}">Hapus</button></td>
         </tr>
     `).join('');
+}
+
+function handleDeleteRow(e){
+    const button = e.target.closest('.btn-delete');
+    if (!button) return;
+
+    state.splice(Number(button.dataset.index), 1);
+    renderPreview();
 }
 
 async function handleSubmit(){
@@ -141,19 +192,27 @@ async function handleSubmit(){
         return;
     }
 
-    const res = await fetch('/wms-rmpm/controller/Outbound.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(state)
-    });
+    const button = q('#btn-submit');
+    button.disabled = true; // cegah submit dobel kalau tombol diklik dua kali
 
-    const data = await res.json();
+    try {
+        const res = await fetch('/wms-rmpm/controller/Inbound.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(state),
+        });
+        const data = await res.json();
 
-    if (data.success) {
-        alert('Berhasil disimpan: ' + data.transaction_code)
-        state = [];
-        renderPreview();
-    } else {
-        alert('Gagal: ' + data.error);
+        if (data.success) {
+            alert('Berhasil disimpan: ' + data.transaction_code);
+            state = [];
+            renderPreview();
+        } else {
+            alert('Gagal: ' + data.error);
+        }
+    } catch (err) {
+        alert('Tidak bisa menghubungi server: ' + err.message);
+    } finally {
+        button.disabled = false;
     }
 }
