@@ -40,16 +40,15 @@ CREATE TABLE stock (
 
     -- Identitas unik satu baris: pallet ini tetap "pallet yang sama" walau bin berubah,
     -- jadi bin sengaja TIDAK ikut di sini (lihat catatan di kepala file).
-    UNIQUE KEY uq_stock_pallet (item_code, exp_date, pallet_number),
+    UNIQUE KEY uq_stock_pallet (item_code, exp_date, pallet_number, bin),
 
     CONSTRAINT fk_stock_item FOREIGN KEY (item_code) REFERENCES material_master(item_code)
 ) ENGINE=InnoDB;
 
 -- Ledger. Immutable: hanya INSERT, tidak pernah UPDATE/DELETE baris yang sudah ada.
 CREATE TABLE transactions (
-    id                BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    transaction_code  VARCHAR(30)   NOT NULL UNIQUE, -- ID Transaksi yang tampil di UI, mis. TRX-20260916-0001
-    transaction_type  ENUM('INBOUND','OUTBOUND','MUTASI') NOT NULL,
+    transaction_code  VARCHAR(30)   NOT NULL UNIQUE PRIMARY KEY,
+    transaction_type  ENUM('INBOUND','OUTBOUND','MUTASI','RETUR') NOT NULL,
 
     item_code     VARCHAR(20)   NOT NULL,
     exp_date      DATE          NOT NULL,

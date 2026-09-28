@@ -1,6 +1,7 @@
 import { setContent } from "./utilities/tools.js";
 import { inbound } from "./pages/Inbound.js";
 import { bintobin } from "./pages/bintobin.js";
+import { outbound } from "./pages/outbound.js";
 
 const app = document.getElementById('app');
 
@@ -54,11 +55,11 @@ function renderPage(page){
     } else if(page === 'inbound'){
         inbound();
     } else if(page === 'outbound'){
-        setContent(`<h1>INI HALAMAN outbound</h1>`)
+        outbound();
     } else if(page === 'bintobin'){
         bintobin();
     } else if(page === 'retur'){
-        setContent(`<h1>INI HALAMAN retur</h1>`)
+        retur();
     } else if(page === 'transactions'){
         setContent(`<h1>INI HALAMAN histori transaksi</h1>`)
     } else if(page === 'stock'){

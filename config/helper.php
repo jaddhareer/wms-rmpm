@@ -1,7 +1,5 @@
 <?php
 
-require_once __DIR__ . '/bootstrap.php';
-
 function sanitize(string $val): string {
     return trim(htmlspecialchars($val, ENT_QUOTES, 'UTF-8'));
 }
@@ -22,7 +20,7 @@ function generateTxnId(PDO $conn, string $transactionType):string {
     $typeMap = [
         'INBOUND' => 'IB',
         'OUTBOUND' => 'OB',
-        'BINTOBIN' => 'TB',
+        'MUTASI' => 'MT',
         'RETUR' => 'RT'
     ];
     $typecode = $typeMap[$transactionType];
@@ -32,6 +30,6 @@ function generateTxnId(PDO $conn, string $transactionType):string {
     $stmt = $conn->prepare($query);
     $stmt->execute([':prefix' => $prefix . '%']);
     $count = (int) $stmt->fetchColumn();
-
-    return $prefix . $count;
+    $sequence = str_pad((string) ($count + 1), 4, '0', STR_PAD_LEFT);
+    return $prefix . $sequence;
 }

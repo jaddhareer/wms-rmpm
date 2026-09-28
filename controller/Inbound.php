@@ -17,6 +17,7 @@ if (!is_array($items) || count($items) === 0) {
 
 // TODO: ganti dengan user_id dari sesi login begitu User Management sudah ada
 $userId = 1;
+$transactionCode = generateTxnId($conn, 'INBOUND');
 
 // Asumsi yang saya ambil (koreksi kalau maunya beda): satu kali submit dari state
 // dianggap satu kesatuan -- kalau satu pallet gagal, semua di-rollback, operator
@@ -24,14 +25,13 @@ $userId = 1;
 try {
     $conn->beginTransaction();
 
-    $savedCodes = [];
-
     foreach ($items as $item) {
         $itemCode  = sanitize($item['item_code']);
         $expDate   = sanitize($item['exp_date']);
         $source    = sanitize($item['source']);
-        $qtyActual = sanitize((string) $item['qty_actual']);
-        $qtySap    = sanitize((string) $item['qty_sap']);
+        $qtyActual = sanitize((float) $item['qty_actual']);
+        $conversionFactor = sanitize((float) $item['conversion_factor']);
+        $qtySap    = sanitize((float) $item['qty_sap']);
         $destination = 'Warehouse RMPM';
         $bin       = sanitize($item['bin']);
         $remark    = sanitize($item['remark'] ?? '');
@@ -40,7 +40,6 @@ try {
         // dari frontend) -- pakai $conn yang sama supaya pallet yang baru saja di-insert
         // di iterasi sebelumnya, dalam transaction yang sama, ikut kehitung.
         $palletNumber = generatePalletNumber($conn, $itemCode, $expDate);
-        $transactionCode = generateTxnId($conn, 'INBOUND');
 
         $stock = new Stock($conn);
         $stock->setItemCode($itemCode);
@@ -48,9 +47,10 @@ try {
         $stock->setPalletNumber($palletNumber);
         $stock->setBin($bin);
         $stock->setQtyActual($qtyActual);
+        $stock->setConversionFactor($conversionFactor);
         $stock->setQtySap($qtySap);
         $stock->setRemark($remark);
-        $stock->save();
+        $stock->stockin();
 
         $transaction = new Transactions($conn);
         $transaction->setTransactionCode($transactionCode);
@@ -61,19 +61,17 @@ try {
         $transaction->setQtyActual($qtyActual);
         $transaction->setQtySap($qtySap);
         $transaction->setSource($source);
-        $transaction->setSourceBin($bin);
         $transaction->setDestination($destination);
         $transaction->setDestinationBin($bin);
         $transaction->setUserId($userId);
         $transaction->setRemark($remark);
         $transaction->save();
 
-        $savedCodes[] = $transactionCode;
     }
 
     $conn->commit();
 
-    echo json_encode(['success' => true, 'transaction_codes' => $savedCodes]);
+    echo json_encode(['success' => true, 'transaction_code' => $transactionCode]);
 
 } catch (Exception $e) {
     $conn->rollBack();
