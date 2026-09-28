@@ -79,7 +79,7 @@ async function autoFillData(){
         if (data.length === 0) {
             alert(`Tidak ada stok tersisa untuk item ${itemCode}`);
         } else if (data.length === 1) {
-            q('#source-bin').value = data[0].source_bin || '';
+            q('#source-bin').value = data[0].bin || '';
             q('#exp-date').value = data[0].exp_date || '';
             q('#pallet-number').value = data[0].pallet_number || '';
             q('#qty').value = data[0].qty_actual || '';
@@ -171,9 +171,19 @@ async function handleMove(){
             },
             body: JSON.stringify(moveData)
         });
-        if (moveResponse.success) {
+        const result = await moveResponse.json();
+        if (result.success) {
             alert('BintoBin berhasil.');
+        } else {
+            alert('Error: ' + result.error);
         }
+
+        sourceBin.value = '';
+        targetBin.value = '';
+        itemCode.value = '';
+        expDate.value = '';
+        palletNumber.value = '';
+        qty.value = '';
     } catch (err) {
         alert('Tidak bisa menghubungi server: ' + err.message);
     } finally {

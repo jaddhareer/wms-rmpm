@@ -76,15 +76,19 @@ class Stock {
             SET bin = :bin
             WHERE item_code = :item_code
               AND exp_date = :exp_date
-              AND pallet_number = :pallet_number';
+              AND pallet_number = :pallet_number
+              AND bin = :source_bin';
 
         $stmt = $this->conn->prepare($query);
-        return $stmt->execute([
+        $stmt->execute([
             ':bin'           => $this->bin,
             ':item_code'     => $this->itemCode,
             ':exp_date'      => $this->expDate,
             ':pallet_number' => $this->palletNumber,
+            ':source_bin'    => $this->bin,
         ]);
+
+        return $stmt->rowCount() > 0;
     }
 
     // Ambil satu pallet (butuh setItemCode, setExpDate, setPalletNumber).
