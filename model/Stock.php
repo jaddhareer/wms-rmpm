@@ -71,9 +71,12 @@ class Stock {
         return $stmt->rowCount() > 0;
     }
 
-    public function updateBin() {
+        // Pindahkan pallet ke bin baru (setBin = bin tujuan).
+    // $sourceBin = bin asal. Syarat "bin = :source_bin" memastikan pallet memang
+    // masih ada di bin asal. Return false kalau tidak ada baris yang berubah.
+    public function updateBin($sourceBin) {
         $query = 'UPDATE ' . $this->table . '
-            SET bin = :bin
+            SET bin = :target_bin
             WHERE item_code = :item_code
               AND exp_date = :exp_date
               AND pallet_number = :pallet_number
@@ -81,11 +84,11 @@ class Stock {
 
         $stmt = $this->conn->prepare($query);
         $stmt->execute([
-            ':bin'           => $this->bin,
+            ':target_bin'    => $this->bin,
             ':item_code'     => $this->itemCode,
             ':exp_date'      => $this->expDate,
             ':pallet_number' => $this->palletNumber,
-            ':source_bin'    => $this->bin,
+            ':source_bin'    => $sourceBin,
         ]);
 
         return $stmt->rowCount() > 0;

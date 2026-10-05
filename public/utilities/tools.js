@@ -23,3 +23,19 @@ export function escapeHtml(value){
         .replaceAll('"', '&quot;')
         .replaceAll("'", '&#039;');
 }
+// Debounce: tunda pemanggilan fn sampai tidak ada panggilan baru selama `delay` ms.
+// Dipakai untuk filter yang jalan saat diketik: mengetik "SODIUM" cukup 1 request, bukan 6.
+export function debounce(fn, delay = 300){
+    let timer = null;
+
+    return (...args) => {
+        clearTimeout(timer);                            // batalkan jadwal sebelumnya
+        timer = setTimeout(() => fn(...args), delay);   // jadwalkan ulang dari awal
+    };
+}
+
+// Angka dari database ("1000.000") -> "1.000" (format Indonesia, maks 3 desimal).
+export function formatNumber(value){
+    const n = parseFloat(value);
+    return Number.isFinite(n) ? n.toLocaleString('id-ID', { maximumFractionDigits: 3 }) : '';
+}

@@ -3,6 +3,7 @@ import { inbound } from "./pages/Inbound.js";
 import { bintobin } from "./pages/bintobin.js";
 import { outbound } from "./pages/outbound.js";
 import { retur } from "./pages/retur.js";
+import { transactions } from "./pages/transactions.js";
 
 const app = document.getElementById('app');
 
@@ -62,7 +63,7 @@ function renderPage(page){
     } else if(page === 'retur'){
         retur();
     } else if(page === 'transactions'){
-        setContent(`<h1>INI HALAMAN histori transaksi</h1>`)
+        transactions();
     } else if(page === 'stock'){
         setContent(`<h1>INI HALAMAN stock overview</h1>`)
     } else if(page === 'user'){

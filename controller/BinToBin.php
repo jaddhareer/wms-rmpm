@@ -4,29 +4,32 @@ header('Content-Type: application/json');
 
 require_once dirname(__DIR__) . '/config/bootstrap.php';
 
-$db = new Database();
-$conn = $db->getConnection();
-
-$transactionCode = generateTxnId($conn, 'MUTASI');
-
 $data = readJsonBody();
 
-$sourceBin    = sanitize($data['source_bin'] ?? '');
-$targetBin    = sanitize($data['target_bin'] ?? '');
+$sourceBin    = strtoupper(sanitize($data['source_bin'] ?? ''));
+$targetBin    = strtoupper(sanitize($data['target_bin'] ?? ''));
 $itemCode     = sanitize($data['item_code'] ?? '');
 $expDate      = sanitize($data['exp_date'] ?? '');
 $palletNumber = (int) ($data['pallet_number'] ?? 0);
 
 if ($itemCode === '' || $expDate === '' || $palletNumber === 0 || $sourceBin === '' || $targetBin === '') {
-    jsonResponse(['error' => 'Semua field wajib diisi'], 400);
+    jsonResponse(['success' => false, 'error' => 'Semua field wajib diisi'], 400);
 }
 
 if ($sourceBin === $targetBin) {
-    jsonResponse(['error' => 'Source bin dan target bin tidak boleh sama'], 400);
+    jsonResponse(['success' => false, 'error' => 'Source bin dan target bin tidak boleh sama'], 400);
 }
+
+$db = new Database();
+$conn = $db->getConnection();
+
+// TODO: ganti dengan user_id dari sesi login begitu fitur login sudah ada
+$userId = 1;
 
 try {
     $conn->beginTransaction();
+
+    $transactionCode = generateTxnId($conn, 'MUTASI');
 
     $binToBin = new Stock($conn);
     $binToBin->setItemCode($itemCode);
@@ -37,10 +40,16 @@ try {
     $stock = $binToBin->findPallet();
 
     if (!$stock) {
-        throw new Exception("Pallet $palletNumber ($itemCode, exp $expDate) tidak ditemukan di bin $sourceBin");
+        throw new Exception("Pallet $palletNumber ($itemCode, exp $expDate) tidak ditemukan");
+    }
+    if ((float) $stock['qty_actual'] <= 0) {
+        throw new Exception("Pallet $palletNumber ($itemCode, exp $expDate) sudah kosong");
     }
 
-    $binToBin->updateBin();
+    // Kalau pallet tidak ada di bin asal, tidak ada baris yang berubah -> batalkan semuanya.
+    if (!$binToBin->updateBin($sourceBin)) {
+        throw new Exception("Pallet $palletNumber tidak ada di bin $sourceBin (posisi sekarang: {$stock['bin']})");
+    }
 
     $mutasi = new Transactions($conn);
     $mutasi->setTransactionCode($transactionCode);
@@ -54,14 +63,21 @@ try {
     $mutasi->setSourceBin($sourceBin);
     $mutasi->setDestination('Warehouse RMPM');
     $mutasi->setDestinationBin($targetBin);
-    $mutasi->setUserId(1); // TODO: ganti dengan user_id dari sesi login begitu fitur login sudah ada
+    $mutasi->setUserId($userId);
     $mutasi->setRemark('Mutasi bin to bin');
     $mutasi->save();
 
     $conn->commit();
-    jsonResponse(['success' => true, 'message' => "Pallet $palletNumber ($itemCode, exp $expDate) berhasil dipindahkan dari bin $sourceBin ke bin $targetBin dengan kode transaksi $transactionCode"]);
+
+    jsonResponse([
+        'success' => true,
+        'message' => "Pallet $palletNumber ($itemCode, exp $expDate) dipindahkan dari $sourceBin ke $targetBin. Kode transaksi: $transactionCode",
+    ]);
 
 } catch (Exception $e) {
-    jsonResponse(['success' => false, 'error' => 'Terjadi kesalahan saat mengambil data bin to bin', 'details' => $e->getMessage()], 500);
-    $conn->rollback();
+    // Rollback DULU. jsonResponse() diakhiri exit, jadi apa pun setelahnya tidak dijalankan.
+    if ($conn->inTransaction()) {
+        $conn->rollBack();
+    }
+    jsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
 }

@@ -129,61 +129,53 @@ async function autoFillData(){
 }
 
 async function handleMove(){
-    const sourceBin = q('#source-bin').value.trim();
-    const targetBin = q('#target-bin').value.trim();
-    const itemCode = q('#item-code').value.trim();
-    const expDate = q('#exp-date').value;
+    const sourceBin    = q('#source-bin').value.trim();
+    const targetBin    = q('#target-bin').value.trim();
+    const itemCode     = q('#item-code').value.trim();
+    const expDate      = q('#exp-date').value;
     const palletNumber = q('#pallet-number').value.trim();
-    const qty = Number(q('#qty').value);
-    const response = await fetch(`controller/StockController.php?source_bin=${encodeURIComponent(sourceBin)}`);
-    const data = await response.json();
-    const conversionFactor = data[0]?.conversion_factor || 1;
-    const qtySap = data[0]?.qty_sap || 0;
-    const uomFisik = data[0]?.uom_fisik || '';
-    const uomSap = data[0]?.uom_sap || '';
 
-    if (!sourceBin || !targetBin || !itemCode || !expDate || !palletNumber || !qty) {
+    if (!sourceBin || !targetBin || !itemCode || !expDate || !palletNumber) {
         alert('Semua field harus diisi.');
         return;
     }
 
-    let moveData = {
-        source_bin: sourceBin,
-        target_bin: targetBin,
-        item_code: itemCode,
-        exp_date: expDate,
+    // Cukup identitas pallet + bin asal + bin tujuan.
+    // Qty dan qty SAP dibaca server dari database.
+    const moveData = {
+        source_bin:    sourceBin,
+        target_bin:    targetBin,
+        item_code:     itemCode,
+        exp_date:      expDate,
         pallet_number: palletNumber,
-        qty_actual: qty,
-        uom_fisik: uomFisik,
-        conversion_factor: conversionFactor,
-        qty_sap: qtySap,
-        uom_sap: uomSap
     };
 
     const button = q('#btn-move');
     button.disabled = true;
 
     try {
-        const moveResponse = await fetch('controller/BinToBin.php', {
+        const moveResponse = await fetch('/wms-rmpm/controller/BinToBin.php', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(moveData)
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(moveData),
         });
         const result = await moveResponse.json();
-        if (result.success) {
-            alert('BintoBin berhasil.');
-        } else {
-            alert('Error: ' + result.error);
-        }
 
-        sourceBin.value = '';
-        targetBin.value = '';
-        itemCode.value = '';
-        expDate.value = '';
-        palletNumber.value = '';
-        qty.value = '';
+        if (result.success) {
+            alert(result.message);
+
+            // Kosongkan lewat ELEMEN-nya (q(...)), bukan lewat variabel string di atas.
+            q('#source-bin').value = '';
+            q('#target-bin').value = '';
+            q('#item-code').value = '';
+            q('#exp-date').value = '';
+            q('#pallet-number').value = '';
+            q('#qty').value = '';
+            q('#source-bin').focus();
+        } else {
+            // Form tidak dikosongkan, supaya operator cukup membetulkan yang salah.
+            alert('Gagal: ' + result.error);
+        }
     } catch (err) {
         alert('Tidak bisa menghubungi server: ' + err.message);
     } finally {
