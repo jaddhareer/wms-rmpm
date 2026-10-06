@@ -125,6 +125,21 @@ class Transactions {
         return (int) $stmt->fetchColumn();
     }
 
+    // Semua baris yang cocok dengan filter, tanpa LIMIT (untuk export Excel).
+    // Sama seperti search(), hanya tanpa paginasi.
+    public function searchAll(array $filters): array {
+        [$where, $params] = $this->buildWhere($filters);
+
+        $sql = 'SELECT ' . self::COLUMNS . ' ' . $this->fromClause() . "
+                $where
+                ORDER BY t.created_at DESC, t.id DESC";
+
+        $stmt = $this->conn->prepare($sql);
+        $stmt->execute($params);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     // Semua baris milik satu kode transaksi (untuk popup detail).
     public function findByCode(string $code): array {
         $sql = 'SELECT ' . self::COLUMNS . ' ' . $this->fromClause() . '

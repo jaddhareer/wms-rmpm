@@ -1,4 +1,4 @@
-import { setContent, q, escapeHtml, debounce, formatNumber } from "../utilities/tools.js";
+import { setContent, q, escapeHtml, debounce, formatNumber, downloadFile } from "../utilities/tools.js";
 import { openPopup, closePopup } from "../utilities/popups.js";
 import { paginationHtml } from "../utilities/pagination.js";
 
@@ -54,6 +54,7 @@ export function transactions(){
                 <input type="time" data-filter="time_to" value="${escapeHtml(f.time_to)}">
             </label>
             <button type="button" id="btn-reset">Reset Filter</button>
+            <button type="button" id="btn-export">Export Excel</button>
         </div>
 
         <p id="trx-info">Memuat...</p>
@@ -91,6 +92,8 @@ export function transactions(){
         state.page = 1;
         transactions();                                   // render ulang dengan filter kosong
     });
+
+    q('#btn-export').addEventListener('click', handleExport);
 
     // Klik nomor halaman. Tombolnya dibuat ulang setiap render -> delegation di wadahnya.
     q('#trx-pagination').addEventListener('click', (e) => {
@@ -133,14 +136,14 @@ function typeSummary(){
 // state -> query string, mis. "types=INBOUND%2COUTBOUND&description=sodium&page=2".
 // URLSearchParams otomatis meng-encode karakter khusus (spasi, koma, &), jadi tidak perlu
 // encodeURIComponent satu per satu. Filter yang kosong tidak ikut dikirim.
-function buildQuery(){
+function buildQuery(includePage = true){
     const params = new URLSearchParams();
 
     for (const [key, value] of Object.entries(state.filters)) {
         const text = Array.isArray(value) ? value.join(',') : value;
         if (text) params.set(key, text);
     }
-    params.set('page', state.page);
+    if (includePage) params.set('page', state.page);
 
     return params.toString();
 }
@@ -265,5 +268,20 @@ async function showDetail(code){
 
     } catch (err) {
         alert('Tidak bisa menghubungi server: ' + err.message);
+    }
+}
+async function handleExport(){
+    const button = q('#btn-export');
+    button.disabled = true;
+    button.textContent = 'Menyiapkan file...';
+
+    try {
+        // Filter yang sama dengan tabel, tapi semua halaman.
+        await downloadFile(`${API}?${buildQuery(false)}&export=1`, 'transaksi-rmpm.xlsx');
+    } catch (err) {
+        alert('Export gagal: ' + err.message);
+    } finally {
+        button.disabled = false;
+        button.textContent = 'Export Excel';
     }
 }

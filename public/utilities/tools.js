@@ -39,3 +39,39 @@ export function formatNumber(value){
     const n = parseFloat(value);
     return Number.isFinite(n) ? n.toLocaleString('id-ID', { maximumFractionDigits: 3 }) : '';
 }
+// Saran bin yang muncul di semua input bin (lewat <datalist>).
+// Ubah di SATU tempat ini kalau penulisan bin floor di lapangan berbeda.
+export const BIN_SUGGESTIONS = ['FLOOR 40', 'FLOOR 50', 'STAGE'];
+
+// <datalist> berisi BIN_SUGGESTIONS. Pasangkan dengan <input list="bin-options">.
+// Datalist hanya memberi saran: operator tetap bisa mengetik bin rak seperti A-01-B-02.
+export function binDatalistHtml(){
+    return `<datalist id="bin-options">${BIN_SUGGESTIONS.map(b => `<option value="${escapeHtml(b)}">`).join('')}</datalist>`;
+}
+
+// Download file (mis. Excel) dari controller TANPA meninggalkan halaman SPA.
+// fetch -> Blob (data biner di memori browser) -> link sementara -> klik otomatis.
+// Kalau server membalas JSON, berarti terjadi error: pesannya dilempar sebagai Error.
+export async function downloadFile(url, fallbackName = 'export.xlsx'){
+    const res = await fetch(url);
+    const type = res.headers.get('Content-Type') || '';
+
+    if (!res.ok || type.includes('application/json')) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${res.status}`);
+    }
+
+    const blob = await res.blob();
+    const disposition = res.headers.get('Content-Disposition') || '';
+    const match = disposition.match(/filename="([^"]+)"/);
+
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = match ? match[1] : fallbackName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    // Lepaskan memori Blob sedikit setelah download dimulai.
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+}

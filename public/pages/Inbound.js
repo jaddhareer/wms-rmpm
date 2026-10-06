@@ -1,4 +1,4 @@
-import { setContent, q, escapeHtml } from "../utilities/tools.js";
+import { setContent, q, escapeHtml, binDatalistHtml } from "../utilities/tools.js";
 
 // Pallet yang sudah di-Add tapi belum di-submit.
 let state = [];
@@ -21,7 +21,7 @@ export function inbound(){
             <label for="conversion-factor">Conversion Factor</label> <input type="number" id="conversion-factor" min="0" step="any"><br>
             <label for="qty-sap">GR Qty</label>                      <input type="text" id="qty-sap" disabled>
                                                                      <input type="text" id="uom-sap" disabled size="6"><hr>
-            <label for="bin">Bin</label>                             <input type="text" id="bin" placeholder="kosong = STAGE"><br>
+            <label for="bin">Bin</label>                             <input type="text" id="bin" list="bin-options" placeholder="kosong = STAGE">${binDatalistHtml()}<br>
             <label for="remark">Remark</label>                       <input type="text" id="remark"><hr>
             <button type="button" id="btn-add">Add</button>
         </div>

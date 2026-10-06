@@ -4,6 +4,7 @@ import { bintobin } from "./pages/bintobin.js";
 import { outbound } from "./pages/outbound.js";
 import { retur } from "./pages/retur.js";
 import { transactions } from "./pages/transactions.js";
+import { stock } from "./pages/stock.js";
 
 const app = document.getElementById('app');
 
@@ -65,7 +66,7 @@ function renderPage(page){
     } else if(page === 'transactions'){
         transactions();
     } else if(page === 'stock'){
-        setContent(`<h1>INI HALAMAN stock overview</h1>`)
+        stock();
     } else if(page === 'user'){
         setContent(`<h1>INI HALAMAN user</h1>`)
     } else {

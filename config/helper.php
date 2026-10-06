@@ -61,3 +61,19 @@ function generateTxnId(PDO $conn, string $transactionType): string {
 
     return $prefix . str_pad((string) ($count + 1), 4, '0', STR_PAD_LEFT);
 }
+
+// "a, b,,c " -> ['a', 'b', 'c']  (untuk filter yang bisa diisi banyak nilai dipisah koma)
+function splitList(string $value): array {
+    return array_values(array_filter(
+        array_map('trim', explode(',', $value)),
+        fn($v) => $v !== ''
+    ));
+}
+
+// true kalau format 'YYYY-MM-DD' dan tanggalnya benar-benar ada (2026-02-30 = false).
+function isValidDate(string $date): bool {
+    if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $date, $m)) {
+        return false;
+    }
+    return checkdate((int) $m[2], (int) $m[3], (int) $m[1]);
+}

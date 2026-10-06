@@ -37,6 +37,39 @@ try {
         'time_to'     => sanitize($_GET['time_to'] ?? ''),
     ];
 
+    // Mode export: ?export=1 + filter yang sama -> download Excel semua baris yang cocok.
+    if (($_GET['export'] ?? '') === '1') {
+        $rows = $transactions->searchAll($filters);
+
+        $xlsx = new XlsxWriter('Transaksi');
+        $xlsx->setHeaders([
+            'ID Transaksi', 'Jenis', 'Item Code', 'Description', 'Exp Date', 'Pallet',
+            'From', 'To', 'Qty', 'UoM', 'Qty SAP', 'UoM SAP', 'User', 'Remark', 'Date Time',
+        ]);
+
+        foreach ($rows as $r) {
+            $xlsx->addRow([
+                $r['transaction_code'],
+                $r['transaction_type'],
+                $r['item_code'],
+                $r['description'],
+                $r['exp_date'],
+                (int) $r['pallet_number'],
+                $r['source_bin'] ?: $r['source'],            // sama seperti kolom From di layar
+                $r['destination_bin'] ?: $r['destination'],  // sama seperti kolom To di layar
+                (float) $r['qty_actual'],
+                $r['uom_fisik'],
+                (float) $r['qty_sap'],
+                $r['uom_sap'],
+                $r['user_name'],
+                $r['remark'],
+                $r['created_at'],
+            ]);
+        }
+
+        $xlsx->download('transaksi-rmpm-' . date('Ymd-His') . '.xlsx'); // exit di dalamnya
+    }
+
     $total = $transactions->countAll($filters);
     $totalPages = max(1, (int) ceil($total / $perPage));
 

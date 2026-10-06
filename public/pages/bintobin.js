@@ -1,4 +1,4 @@
-import { setContent, q, escapeHtml } from "../utilities/tools.js";
+import { setContent, q, escapeHtml, binDatalistHtml } from "../utilities/tools.js";
 import { openPopup, closePopup } from "../utilities/popups.js";
 
 export function bintobin(){
@@ -6,7 +6,7 @@ export function bintobin(){
         <h2>Bin to Bin</h2>
         <div>
             <label for="source">Source Bin</label> <input type="text" id="source-bin" placeholder="A-01-A-01">
-            <label for="target-bin">Target Bin</label> <input type="text" id="target-bin" placeholder="A-01-A-02"><hr>
+            <label for="target-bin">Target Bin</label> <input type="text" id="target-bin" list="bin-options" placeholder="A-01-A-02">${binDatalistHtml()}<hr>
             <label for="item-code">Item Code</label> <input type="text" id="item-code"><br>
             <label for="exp-date">Expired Date</label> <input type="date" id="exp-date"><br>
             <label for="pallet-number">Pallet Number</label> <input type="text" id="pallet-number"><br>
@@ -16,14 +16,17 @@ export function bintobin(){
     `)
 
     q('#btn-move').addEventListener('click', handleMove);
-    q('#source-bin').addEventListener('input', autoFillData);
-    q('#item-code').addEventListener('input', autoFillData);
+    // Source bin: dicari otomatis begitu panjangnya 9 karakter (hasil scan QR rak).
+    // Pallet di floor tidak punya QR bin -> operator cukup scan item code.
+    q('#source-bin').addEventListener('input', () => autoFillData('bin'));
+    q('#item-code').addEventListener('input', () => autoFillData('item'));
 }
 
-async function autoFillData(){
+// mode = input mana yang memicu: 'bin' (source bin) atau 'item' (item code).
+async function autoFillData(mode){
     const sourceBin = q('#source-bin').value.trim() ? q('#source-bin').value.trim() : null;
     const itemCode = q('#item-code').value.trim() ? q('#item-code').value.trim() : null;
-    if (sourceBin && sourceBin.length === 9) {
+    if (mode === 'bin' && sourceBin && sourceBin.length === 9) {
         const response = await fetch(`controller/StockController.php?source_bin=${encodeURIComponent(sourceBin)}`);
         const data = await response.json();
         if (data.length === 0) {
@@ -73,7 +76,7 @@ async function autoFillData(){
                     q('#target-bin').focus();
                 });
         }
-    } else if (itemCode && itemCode.length === 9) {
+    } else if (mode === 'item' && itemCode && itemCode.length === 9) {
         const response = await fetch(`controller/StockController.php?item_code=${encodeURIComponent(itemCode)}`);
         const data = await response.json();
         if (data.length === 0) {
