@@ -64,11 +64,13 @@ CREATE TABLE stock (
 --   INBOUND  -> source = supplier,                 destination_bin = bin taruh
 --   OUTBOUND -> source_bin = bin asal,             destination = 'PRODUKSI'/'QUALITY'
 --   MUTASI   -> source_bin = bin asal,             destination_bin = bin tujuan
---   RETUR    -> source = 'PRODUKSI'/'QUALITY',     destination_bin = bin taruh balik
+--   RETUR    -> source = 'PRODUKSI'/'QUALITY',     destination_bin = bin taruh balik,
+--               reference_code = kode OUTBOUND asal
 CREATE TABLE transactions (
     id                BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     transaction_code  VARCHAR(20)   NOT NULL, -- mis. RMPMIB26090001
     transaction_type  ENUM('INBOUND','OUTBOUND','MUTASI','RETUR') NOT NULL,
+    reference_code    VARCHAR(20)   NULL, -- RETUR: kode OUTBOUND asal (lihat migrations/001)
 
     item_code     VARCHAR(20)   NOT NULL,
     exp_date      DATE          NOT NULL,
@@ -89,6 +91,7 @@ CREATE TABLE transactions (
     CONSTRAINT fk_trx_item FOREIGN KEY (item_code) REFERENCES material_master(item_code),
     CONSTRAINT fk_trx_user FOREIGN KEY (user_id) REFERENCES users(id),
     INDEX idx_trx_code (transaction_code),
+    INDEX idx_trx_reference (reference_code),
     INDEX idx_trx_item_exp (item_code, exp_date),
     INDEX idx_trx_created (created_at)
 ) ENGINE=InnoDB;

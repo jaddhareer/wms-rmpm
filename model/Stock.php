@@ -94,6 +94,29 @@ class Stock {
         return $stmt->rowCount() > 0;
     }
 
+    // Retur: tambah qty kembali ke pallet asal (butuh setItemCode, setExpDate, setPalletNumber,
+    // setQtyActual, setQtySap). $newBin diisi kalau pallet sebelumnya kosong (qty 0) dan
+    // barang yang kembali ditaruh di lokasi baru; null = bin tidak berubah.
+    public function stockReturn(?string $newBin = null): bool {
+        $query = 'UPDATE ' . $this->table . '
+            SET qty_actual = qty_actual + :qty_in,
+                qty_sap    = qty_sap + :qty_sap,
+                bin        = COALESCE(:new_bin, bin)
+            WHERE item_code = :item_code AND exp_date = :exp_date AND pallet_number = :pallet_number';
+
+        $stmt = $this->conn->prepare($query);
+        $stmt->execute([
+            ':qty_in'        => $this->qtyActual,
+            ':qty_sap'       => $this->qtySap,
+            ':new_bin'       => $newBin,
+            ':item_code'     => $this->itemCode,
+            ':exp_date'      => $this->expDate,
+            ':pallet_number' => $this->palletNumber,
+        ]);
+
+        return $stmt->rowCount() > 0;
+    }
+
     // Ambil satu pallet (butuh setItemCode, setExpDate, setPalletNumber).
     // FOR UPDATE mengunci baris ini sampai commit/rollback, supaya data yang dibaca
     // (bin, sisa qty) tidak berubah oleh proses lain sebelum kita selesai.

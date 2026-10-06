@@ -8,6 +8,7 @@ class Transactions {
 
     private $transactionCode;
     private $transactionType;
+    private $referenceCode;
     private $itemCode;
     private $expDate;
     private $palletNumber;
@@ -23,6 +24,7 @@ class Transactions {
     public function __construct($conn)             {$this->conn = $conn;}
     public function setTransactionCode($v)         {$this->transactionCode = $v;}
     public function setTransactionType($v)         {$this->transactionType = $v;}
+    public function setReferenceCode($v)           {$this->referenceCode = $v;}
     public function setItemCode($v)                {$this->itemCode = $v;}
     public function setExpDate($v)                 {$this->expDate = $v;}
     public function setPalletNumber($v)            {$this->palletNumber = $v;}
@@ -39,11 +41,11 @@ class Transactions {
         // transaction_code jadi PRIMARY KEY (diisi manual dari generateTransactionCode()),
         // created_at punya DEFAULT CURRENT_TIMESTAMP -- sama seperti Stock, tidak disebut di sini.
         $query = 'INSERT INTO ' . $this->table . '
-            (transaction_code, transaction_type, item_code, exp_date, pallet_number,
+            (transaction_code, transaction_type, reference_code, item_code, exp_date, pallet_number,
              qty_actual, qty_sap, source, source_bin, destination, destination_bin,
              user_id, remark)
             VALUES
-            (:transaction_code, :transaction_type, :item_code, :exp_date, :pallet_number,
+            (:transaction_code, :transaction_type, :reference_code, :item_code, :exp_date, :pallet_number,
              :qty_actual, :qty_sap, :source, :source_bin, :destination, :destination_bin,
              :user_id, :remark)';
 
@@ -52,6 +54,7 @@ class Transactions {
         return $stmt->execute([
             ':transaction_code' => $this->transactionCode,
             ':transaction_type' => $this->transactionType,
+            ':reference_code'   => $this->referenceCode,   // null untuk selain RETUR
             ':item_code'        => $this->itemCode,
             ':exp_date'         => $this->expDate,
             ':pallet_number'    => $this->palletNumber,
@@ -136,6 +139,41 @@ class Transactions {
 
         $stmt = $this->conn->prepare($sql);
         $stmt->execute($params);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // Pallet-pallet dalam satu dokumen OUTBOUND beserta sisa yang masih boleh diretur.
+    // Satu baris per pallet (kalau satu pallet muncul dua kali di dokumen yang sama, qty-nya dijumlah).
+    //   qty_out      = total keluar di dokumen ini
+    //   qty_returned = total yang sudah diretur, dihitung dari baris RETUR dengan
+    //                  reference_code = dokumen ini (bukan dari isi remark)
+    //   stock_qty / stock_bin = kondisi pallet sekarang (untuk aturan bin retur)
+    public function findReturnable(string $outboundCode): array {
+        $sql = "SELECT t.item_code, m.description, t.exp_date, t.pallet_number,
+                       GROUP_CONCAT(DISTINCT t.destination ORDER BY t.destination SEPARATOR ', ') AS destination,
+                       SUM(t.qty_actual) AS qty_out,
+                       m.uom_fisik, m.uom_sap,
+                       COALESCE(MAX(r.qty_returned), 0) AS qty_returned,
+                       MAX(s.qty_actual) AS stock_qty,
+                       MAX(s.bin)        AS stock_bin,
+                       MAX(s.conversion_factor) AS conversion_factor,
+                       MIN(t.created_at) AS created_at
+                FROM {$this->table} t
+                JOIN material_master m ON m.item_code = t.item_code
+                LEFT JOIN (
+                    SELECT item_code, exp_date, pallet_number, SUM(qty_actual) AS qty_returned
+                    FROM {$this->table}
+                    WHERE transaction_type = 'RETUR' AND reference_code = ?
+                    GROUP BY item_code, exp_date, pallet_number
+                ) r ON r.item_code = t.item_code AND r.exp_date = t.exp_date AND r.pallet_number = t.pallet_number
+                LEFT JOIN stock s ON s.item_code = t.item_code AND s.exp_date = t.exp_date AND s.pallet_number = t.pallet_number
+                WHERE t.transaction_code = ? AND t.transaction_type = 'OUTBOUND'
+                GROUP BY t.item_code, t.exp_date, t.pallet_number, m.description, m.uom_fisik, m.uom_sap
+                ORDER BY MIN(t.id) ASC";
+
+        $stmt = $this->conn->prepare($sql);
+        $stmt->execute([$outboundCode, $outboundCode]);
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }

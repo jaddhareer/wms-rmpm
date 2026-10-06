@@ -1,4 +1,6 @@
 import { setContent } from "./utilities/tools.js";
+import { initRouter, navigateTo } from "./utilities/router.js";
+import { dashboard } from "./pages/dashboard.js";
 import { inbound } from "./pages/Inbound.js";
 import { bintobin } from "./pages/bintobin.js";
 import { outbound } from "./pages/outbound.js";
@@ -23,38 +25,18 @@ function renderNavbar(){
 
     nav.querySelectorAll('.nav-btn').forEach(menu => {
         menu.addEventListener('click', (e) => {
-            const page = e.target.getAttribute('data-page');
-            navigateTo(page);
+            navigateTo(e.target.getAttribute('data-page'));
         })
     })
 
     return nav;
 }
 
-function initApp(){
-    app.appendChild(renderNavbar());
-
-    const contentArea = document.createElement('div');
-    contentArea.id = 'content-area';
-    app.appendChild(contentArea);
-
-    const startPage = location.hash ? location.hash.slice(1) : 'dashboard';
-    history.replaceState({ page: startPage }, '', '#' + startPage);
-    renderPage(startPage);
-}
-
-// Dipanggil dari klik navbar -> ini yang mencatat entry baru ke history browser.
-function navigateTo(page){
-    history.pushState({ page }, '', '#' + page);
-    renderPage(page);
-}
-
-// Benar-benar merender halaman, TIDAK menyentuh history sama sekali. Dipanggil dari
-// navigateTo() (klik navbar) maupun dari event popstate (tombol back/forward) --
-// dipisah supaya popstate tidak ikut mendorong history baru tiap kali user pencet back.
-function renderPage(page){
+// Menggambar halaman. Dipanggil oleh router (klik menu, back/forward, refresh).
+// params = parameter dari URL, mis. { code: 'RMPMOB26090007' } untuk #retur?code=...
+function renderPage(page, params = {}){
     if(page === 'dashboard'){
-        setContent(`<h1>INI HALAMAN dashboard</h1>`)
+        dashboard();
     } else if(page === 'inbound'){
         inbound();
     } else if(page === 'outbound'){
@@ -62,7 +44,7 @@ function renderPage(page){
     } else if(page === 'bintobin'){
         bintobin();
     } else if(page === 'retur'){
-        retur();
+        retur(params);
     } else if(page === 'transactions'){
         transactions();
     } else if(page === 'stock'){
@@ -74,11 +56,14 @@ function renderPage(page){
     }
 }
 
-// Tombol back/forward browser memicu ini -- render ulang sesuai state yang tersimpan
-// di history-nya, TANPA pushState lagi (kalau ikut push, tombol back malah rusak).
-window.addEventListener('popstate', (e) => {
-    const page = e.state ? e.state.page : 'dashboard';
-    renderPage(page);
-});
+function initApp(){
+    app.appendChild(renderNavbar());
+
+    const contentArea = document.createElement('div');
+    contentArea.id = 'content-area';
+    app.appendChild(contentArea);
+
+    initRouter(renderPage);
+}
 
 initApp();

@@ -64,7 +64,7 @@ try {
     $mutasi->setDestination('Warehouse RMPM');
     $mutasi->setDestinationBin($targetBin);
     $mutasi->setUserId($userId);
-    $mutasi->setRemark('Mutasi bin to bin');
+    $mutasi->setRemark('');
     $mutasi->save();
 
     $conn->commit();

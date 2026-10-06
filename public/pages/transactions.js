@@ -1,6 +1,7 @@
 import { setContent, q, escapeHtml, debounce, formatNumber, downloadFile } from "../utilities/tools.js";
 import { openPopup, closePopup } from "../utilities/popups.js";
 import { paginationHtml } from "../utilities/pagination.js";
+import { navigateTo } from "../utilities/router.js";
 
 const API = '/wms-rmpm/controller/TransactionController.php';
 const TYPES = ['INBOUND', 'OUTBOUND', 'MUTASI', 'RETUR'];
@@ -261,10 +262,19 @@ async function showDetail(code){
                 </tbody>
             </table>
             <br>
+            ${head.transaction_type === 'OUTBOUND'
+                ? `<button type="button" id="btn-retur">Retur</button>`
+                : ''}
             <button type="button" id="btn-close-popup">Tutup</button>
         `);
 
         box.querySelector('#btn-close-popup').addEventListener('click', closePopup);
+
+        // Hanya dokumen OUTBOUND yang bisa diretur -> buka menu Retur dengan ID ini terisi.
+        box.querySelector('#btn-retur')?.addEventListener('click', () => {
+            closePopup();
+            navigateTo('retur', { code });
+        });
 
     } catch (err) {
         alert('Tidak bisa menghubungi server: ' + err.message);
