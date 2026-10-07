@@ -5,7 +5,7 @@ import { paginationHtml } from "../utilities/pagination.js";
 // Struktur halaman ini sama dengan transactions.js:
 // state { filters, page } -> query string -> controller -> render tabel + paginasi.
 
-const API = '/wms-rmpm/controller/StockOverviewController.php';
+const API = 'controller/StockOverviewController.php';
 
 function emptyFilters(){
     return { description: '', exp_from: '', exp_to: '', bin: '' };

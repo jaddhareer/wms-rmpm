@@ -1,7 +1,7 @@
 import { setContent, q, escapeHtml, binDatalistHtml } from "../utilities/tools.js";
 import { autocomplete } from "../utilities/autocomplete.js";
 
-const MATERIAL_API = '/wms-rmpm/controller/MaterialController.php';
+const MATERIAL_API = 'controller/MaterialController.php';
 
 // Item code selalu 9 digit angka. Pola ini membedakan "scan / ketik item code penuh"
 // (langsung dicari persis) dari "ketik deskripsi" (pakai saran autocomplete).
@@ -152,7 +152,7 @@ async function handleAdd(){
         return;
     }
 
-    const res = await fetch(`/wms-rmpm/controller/PalletController.php?item_code=${encodeURIComponent(itemCode)}&exp_date=${encodeURIComponent(expDate)}`);
+    const res = await fetch(`controller/PalletController.php?item_code=${encodeURIComponent(itemCode)}&exp_date=${encodeURIComponent(expDate)}`);
     const data = await res.json();
 
     if (!res.ok) {
@@ -232,7 +232,7 @@ async function handleSubmit(){
     button.disabled = true; // cegah submit dobel kalau tombol diklik dua kali
 
     try {
-        const res = await fetch('/wms-rmpm/controller/Inbound.php', {
+        const res = await fetch('controller/Inbound.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(state),

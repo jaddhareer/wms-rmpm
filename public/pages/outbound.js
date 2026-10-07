@@ -79,7 +79,7 @@ function handleItemCodeInput(){
 async function loadPallets(itemCode){
     if (!itemCode) return;
 
-    const res = await fetch(`/wms-rmpm/controller/StockController.php?item_code=${encodeURIComponent(itemCode)}`);
+    const res = await fetch(`controller/StockController.php?item_code=${encodeURIComponent(itemCode)}`);
     const data = await res.json();
 
     // Abaikan jawaban basi (input sudah berubah / sudah pindah halaman).
@@ -251,7 +251,7 @@ async function handleSubmit(){
     button.disabled = true;
 
     try {
-        const res = await fetch('/wms-rmpm/controller/Outbound.php', {
+        const res = await fetch('controller/Outbound.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(state),

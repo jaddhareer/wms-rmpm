@@ -6,7 +6,7 @@ import { setContent, q, escapeHtml, formatNumber } from "../utilities/tools.js";
 // Chart.js dimuat di index.html sebagai <script> biasa (file lokal di public/vendor),
 // jadi di sini tersedia sebagai variabel global window.Chart.
 
-const API = '/wms-rmpm/controller/DashboardController.php';
+const API = 'controller/DashboardController.php';
 
 const PERIODS = [
     ['daily',   'Harian (14 hari)'],

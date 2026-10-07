@@ -3,7 +3,7 @@ import { openPopup, closePopup } from "../utilities/popups.js";
 import { paginationHtml } from "../utilities/pagination.js";
 import { navigateTo } from "../utilities/router.js";
 
-const API = '/wms-rmpm/controller/TransactionController.php';
+const API = 'controller/TransactionController.php';
 const TYPES = ['INBOUND', 'OUTBOUND', 'MUTASI', 'RETUR'];
 
 function emptyFilters(){

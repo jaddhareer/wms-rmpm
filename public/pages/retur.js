@@ -5,7 +5,7 @@ import { replaceParams } from "../utilities/router.js";
 // Alur: muat dokumen OUTBOUND -> pilih pallet -> isi qty (dan bin kalau pallet sudah kosong)
 //       -> Add ke daftar -> Submit.
 
-const API = '/wms-rmpm/controller/ReturController.php';
+const API = 'controller/ReturController.php';
 
 // State halaman (scope modul).
 let refCode = '';        // kode dokumen outbound yang sedang dimuat

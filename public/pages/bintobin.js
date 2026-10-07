@@ -157,7 +157,7 @@ async function handleMove(){
     button.disabled = true;
 
     try {
-        const moveResponse = await fetch('/wms-rmpm/controller/BinToBin.php', {
+        const moveResponse = await fetch('controller/BinToBin.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(moveData),
