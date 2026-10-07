@@ -9,7 +9,7 @@ header('Content-Type: application/json');
 
 require_once dirname(__DIR__) . '/config/bootstrap.php';
 
-requireLogin(); // belum login -> 401 dan berhenti di sini
+requireLogin('stock'); // belum login -> 401, role tanpa menu 'stock' -> 403
 
 $perPage = 15;
 

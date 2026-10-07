@@ -4,8 +4,8 @@ header('Content-Type: application/json');
 
 require_once dirname(__DIR__) . '/config/bootstrap.php';
 
-// Belum login -> 401 dan berhenti di sini. $userId dicatat di ledger sebagai pelaku transaksi.
-$userId = requireLogin();
+// Belum login -> 401, role tanpa menu 'bintobin' -> 403. $userId dicatat di ledger sebagai pelaku transaksi.
+$userId = requireLogin('bintobin');
 
 $data = readJsonBody();
 

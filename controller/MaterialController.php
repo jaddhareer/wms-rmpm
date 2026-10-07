@@ -4,7 +4,7 @@ header('Content-Type: application/json');
 
 require_once dirname(__DIR__) . '/config/bootstrap.php';
 
-requireLogin(); // belum login -> 401 dan berhenti di sini
+requireLogin(); // cukup login: dipakai autocomplete Inbound, Outbound, Bin to Bin
 
 $db = new Database();
 $conn = $db->getConnection();

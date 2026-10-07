@@ -4,7 +4,7 @@ header('Content-Type: application/json');
 
 require_once dirname(__DIR__) . '/config/bootstrap.php';
 
-requireLogin(); // belum login -> 401 dan berhenti di sini
+requireLogin('inbound'); // belum login -> 401, role tanpa menu 'inbound' -> 403
 
 $itemCode = sanitize($_GET['item_code'] ?? '');
 $expDate = sanitize($_GET['exp_date'] ?? '');

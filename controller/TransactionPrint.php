@@ -10,11 +10,16 @@
 
 require_once dirname(__DIR__) . '/config/bootstrap.php';
 
-// Halaman ini dibuka di tab baru (bukan lewat fetch), jadi kalau belum login
-// balasannya teks yang bisa dibaca orang, bukan JSON 401 seperti requireLogin().
-if (currentUserId() === null) {
+// Halaman ini dibuka di tab baru (bukan lewat fetch), jadi kalau belum login / tidak
+// berhak, balasannya teks yang bisa dibaca orang, bukan JSON seperti requireLogin().
+$user = currentUser();
+if ($user === null) {
     http_response_code(401);
     exit('Sesi login habis. Login dulu di aplikasi WMS RMPM, lalu buka ulang halaman cetak ini.');
+}
+if (!canAccess($user['role'], 'transactions')) {
+    http_response_code(403);
+    exit('Anda tidak punya akses ke menu Histori Transaksi.');
 }
 
 // Judul dokumen & label tanda tangan per jenis transaksi.

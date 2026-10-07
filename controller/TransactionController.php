@@ -7,7 +7,7 @@ header('Content-Type: application/json');
 
 require_once dirname(__DIR__) . '/config/bootstrap.php';
 
-requireLogin(); // belum login -> 401 dan berhenti di sini
+requireLogin('transactions'); // belum login -> 401, role tanpa menu 'transactions' -> 403
 
 $perPage = 50;
 

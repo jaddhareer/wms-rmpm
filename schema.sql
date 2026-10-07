@@ -14,12 +14,16 @@
 DROP TABLE IF EXISTS transactions;
 DROP TABLE IF EXISTS stock;
 
+-- User tidak pernah dihapus (transactions.user_id menunjuk ke sini), cukup dinonaktifkan.
+-- Database lama yang tabel users-nya dibuat sebelum kolom is_active ada:
+--   ALTER TABLE users ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1 AFTER role;
 CREATE TABLE IF NOT EXISTS users (
     id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     username      VARCHAR(50)  NOT NULL UNIQUE,
     full_name     VARCHAR(100) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
-    role          VARCHAR(30)  NOT NULL,
+    role          VARCHAR(30)  NOT NULL,          -- admin | operator (hak akses: ROLE_PAGES di config/helper.php)
+    is_active     TINYINT(1)   NOT NULL DEFAULT 1, -- 0 = nonaktif: tidak bisa login, sesinya langsung putus
     created_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 

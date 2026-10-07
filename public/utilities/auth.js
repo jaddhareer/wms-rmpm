@@ -9,7 +9,7 @@
 
 const API = 'controller/UsersController.php';
 
-let currentUser = null;         // { id, username, full_name, role } atau null
+let currentUser = null;         // { id, username, full_name, role, pages: [...] } atau null
 let userChangeListener = null;  // dipasang main.js untuk memperbarui nama user di navbar
 let reloginPromise = null;      // popup login ulang yang sedang terbuka (dipakai bersama)
 
@@ -17,6 +17,17 @@ let reloginPromise = null;      // popup login ulang yang sedang terbuka (dipaka
 // (mis. login ulang di popup memakai akun lain).
 export function onUserChange(listener){
     userChangeListener = listener;
+}
+
+export function getCurrentUser(){
+    return currentUser;
+}
+
+// true kalau role user yang login boleh membuka menu ini (daftar 'pages' dari server).
+// Hanya untuk TAMPILAN (menyembunyikan menu). Penjaga sebenarnya ada di server:
+// requireLogin('menu') di controller membalas 403.
+export function canOpen(page){
+    return currentUser?.pages.includes(page) ?? false;
 }
 
 function setCurrentUser(user){

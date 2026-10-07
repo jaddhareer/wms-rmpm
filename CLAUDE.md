@@ -16,7 +16,8 @@ Dijalankan lokal di XAMPP (`C:\xampp`): Apache, PHP 8.2, MariaDB 10.4.
 
 - Database: nama di `config/database.php` (sekarang `wms_rmpm`), user `root` tanpa password.
 - `schema.sql` men-DROP dan membuat ulang tabel `stock` & `transactions` (datanya hilang). `users` dan `material_master` hanya dibuat kalau belum ada. **Jangan dijalankan tanpa izin Hariri.**
-- Data awal: jalankan `material_master_insert.sql`, dan harus ada minimal satu user di tabel `users` (sekarang `admin`, id 1) untuk login. Sebelum User Management jadi, user baru dibuat manual dengan `password_hash()`.
+- Data awal: jalankan `material_master_insert.sql`, dan harus ada minimal satu user admin aktif di tabel `users` (sekarang `admin`, id 1). User lain dibuat lewat menu User.
+- User uji yang sudah ada (nonaktif): `uji_operator` (id 3), `uji_ui` (id 4). Untuk menguji role operator, aktifkan lagi lewat menu User lalu reset password-nya.
 - Buka lewat `http://localhost/wms-rmpm/`, lalu login.
 - File sesi login disimpan di `C:\xampp\tmp\wms-rmpm` (folder sendiri, lihat `startSession()` di `helper.php`).
 
@@ -40,7 +41,7 @@ curl -s -X POST -H "Content-Type: application/json" -d '[...]' \
 
 ```
 config/      bootstrap.php (timezone Asia/Jakarta + require semua), database.php, helper.php
-model/       HANYA SQL. Stock, Transactions, Material, Dashboard
+model/       HANYA SQL. Stock, Transactions, Material, Dashboard, UsersModel
 controller/  HTTP masuk/keluar + orkestrasi beberapa model + DB transaction. Membalas JSON,
              kecuali TransactionPrint.php yang membalas HTML lewat view/
 view/        template HTML PHP (hanya untuk halaman cetak), tanpa query
@@ -51,7 +52,10 @@ index.html   kerangka SPA
 
 ## Aturan backend
 
-- **Setiap controller wajib login**: panggil `requireLogin()` tepat setelah `require bootstrap.php` (belum login → 401 JSON). Controller tulis memakai `$userId = requireLogin();` sebagai `user_id` di ledger. Halaman HTML (`TransactionPrint.php`) memakai `currentUserId()` dan membalas teks biasa. Pengecualian hanya `UsersController.php` (login/logout/me). Sesi = PHP session, berakhir setelah 8 jam tanpa request (`SESSION_IDLE_SECONDS`).
+- **Setiap controller wajib login + hak akses**: panggil `requireLogin('nama-menu')` tepat setelah `require bootstrap.php`. Belum login / user nonaktif → 401, role tanpa menu itu → 403. Nama menu = `data-page` di navbar = isi `ROLE_PAGES` (`config/helper.php`). Controller pencarian yang dipakai beberapa menu (Material, Stock) cukup `requireLogin()`. Controller tulis memakai `$userId = requireLogin('inbound');` sebagai `user_id` di ledger. Halaman HTML (`TransactionPrint.php`) memakai `currentUser()` + `canAccess()` dan membalas teks biasa.
+- Role & hak akses: `ROLE_PAGES` di `helper.php` (sekarang `admin` = semua menu + User, `operator` = semua kecuali User). Menambah role = menambah satu baris di situ. User dibaca ulang dari database setiap request (`currentUser()`), jadi perubahan role/nonaktif langsung berlaku.
+- Sesi = PHP session, berakhir setelah 8 jam tanpa request (`SESSION_IDLE_SECONDS`). `startSession()` aman dipanggil lagi setelah `session_write_close()`.
+- **401 hanya untuk "belum login / sesi habis"**, karena `apiFetch()` di browser menganggap 401 sebagai sesi habis dan membuka popup login ulang. Kesalahan lain (password lama salah, validasi) → 400.
 - Respons JSON lewat `jsonResponse($data, $status)` (memanggil `exit`). Body POST dikirim sebagai JSON → baca dengan `readJsonBody()`, bukan `$_POST`. GET → `$_GET`.
 - Transaksi tulis: validasi dulu → `beginTransaction()` → langkah-langkah → `commit()`. Pelanggaran aturan bisnis dilempar sebagai `Exception`. Di `catch`: **`rollBack()` dulu, baru `jsonResponse()`** (karena jsonResponse exit).
 - Update stok anti-race: `UPDATE ... WHERE qty_actual >= :qty_check` lalu cek `rowCount() > 0`. Placeholder bernama tidak boleh dipakai dua kali dalam satu query (pakai nama berbeda, mis. `:qty_out` & `:qty_check`). `findPallet()` memakai `SELECT ... FOR UPDATE`.
@@ -70,6 +74,7 @@ index.html   kerangka SPA
   - OUTBOUND: `source_bin`, `destination` = PRODUKSI / QUALITY
   - MUTASI (Bin to Bin): `source_bin` → `destination_bin`
   - RETUR: `source` = PRODUKSI / QUALITY, `destination_bin`, `reference_code` = kode OUTBOUND asal. Barang kembali ke nomor pallet asalnya.
+- `users`: **tidak pernah di-DELETE** (`transactions.user_id` FK ke sini). User yang keluar → `is_active = 0`. Username tidak bisa diubah setelah dibuat. Admin tidak bisa mengubah role / menonaktifkan akun sendiri, dan harus tersisa minimal satu admin aktif (dicek dengan `FOR UPDATE` di dalam transaction).
 - Lokasi TIDAK disimpan, diturunkan dari nama bin (`Dashboard::LOCATIONS`): rak `A-`–`D-` = Gudang 40, `E-`–`F-` = Gudang 50, `FLOOR 40`, `FLOOR 50`. `STAGE` tidak dihitung okupansi.
 
 ## Aturan frontend
@@ -79,11 +84,14 @@ index.html   kerangka SPA
 - Fetch yang bisa basi (ketik cepat / pindah halaman) memakai penanda `requestId`. Filter saat mengetik memakai `debounce`.
 - Router: `public/utilities/router.js`, URL hash dengan parameter (mis. `#retur?code=RMPMOB...`). Halaman memanggil `navigateTo()` dari router, bukan dari main.js (menghindari import melingkar).
 - **Path fetch selalu relatif**: `controller/Xxx.php`, JANGAN `/wms-rmpm/controller/...` (supaya tidak terikat nama folder/host).
-- **Request ke controller memakai `apiFetch()` dari `utilities/auth.js`, bukan `fetch()` langsung.** Kalau server membalas 401, `apiFetch` membuka popup login ulang lalu mengirim ulang request yang sama (isi form tidak hilang). Hanya `auth.js` sendiri yang memakai `fetch()` (login/logout/me). `auth.js` tidak boleh meng-import `tools.js` (tools.js sudah meng-import auth.js).
+- **Request ke controller memakai `apiFetch()` dari `utilities/auth.js`, bukan `fetch()` langsung.** Kalau server membalas 401, `apiFetch` membuka popup login ulang lalu mengirim ulang request yang sama (isi form tidak hilang). Hanya `auth.js` sendiri yang memakai `fetch()` (login/logout/me). `auth.js` tidak boleh meng-import apa pun dari project (tools.js & users.js meng-import auth.js).
+- Menu navbar digambar dari `MENU_GROUPS` di `main.js`, disaring `canOpen(page)` (daftar `pages` dari server saat login). Menu baru: tambahkan di `MENU_GROUPS` DAN di `ROLE_PAGES` (helper.php). Menyembunyikan menu hanya tampilan; penjaganya `requireLogin('menu')` di controller.
 - Item code = 9 digit angka → pakai `ITEM_CODE_PATTERN` dari `utilities/materialAutocomplete.js` (bukan `length === 9`). Input item code di Inbound/Outbound/Bin to Bin memakai `materialAutocomplete()` (ketik deskripsi → pilih → input diganti item code). Outbound & Bin to Bin hanya menyarankan material yang ada stoknya.
 - Bin to Bin: source bin otomatis dicari saat panjangnya 9 karakter (scan QR rak). Ini disengaja, pallet di floor dicari lewat scan item code.
 - Library JS disimpan lokal di `public/vendor/` (Chart.js, signature_pad). Jangan pakai CDN, gudang tidak selalu ada internet.
 
-## Belum dikerjakan
+## Login & User Management (sudah jadi)
 
-1. **User Management** (Login sudah jadi). Tambahkan aksinya di `controller/UsersController.php` (class, satu method per aksi) dan SQL-nya di `model/UsersModel.php`. Halamannya di `public/pages/users.js` (masih kosong). Menu "User" di `main.js` (`data-page="user"`) masih placeholder dan belum meng-import `users.js`. Role belum dipakai untuk membatasi menu; pembatasan per role dikerjakan di sini. Jangan membuat file baru di tempat lain.
+- Backend: `controller/UsersController.php` (class, satu method per aksi, dipilih lewat tabel `$routes` + `?action=`), SQL di `model/UsersModel.php`, fungsi sesi & hak akses di `config/helper.php`.
+- Frontend: `public/utilities/auth.js` (layar login, popup login ulang, `apiFetch`, `canOpen`), `public/pages/users.js` (menu User + popup Ganti Password dari navbar).
+- Belum ada: batas percobaan login (brute force).

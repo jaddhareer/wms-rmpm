@@ -101,12 +101,55 @@ function formatNumber($value): string {
 // Sesi berakhir kalau tidak ada request sama sekali selama ini (detik). 8 jam = 1 shift.
 const SESSION_IDLE_SECONDS = 8 * 60 * 60;
 
+// Hak akses per role = menu (halaman SPA) yang boleh dibuka. Nama menu sama dengan
+// data-page di navbar (main.js). Dipakai di dua tempat:
+//   - controller: requireLogin('inbound') menolak role yang tidak punya 'inbound' (403)
+//   - browser: daftar ini dikirim saat login, navbar hanya menampilkan menu yang boleh
+// Menambah role (mis. viewer yang hanya boleh melihat) cukup menambah satu baris di sini.
+const ROLE_PAGES = [
+    'admin'    => ['dashboard', 'inbound', 'outbound', 'bintobin', 'retur', 'transactions', 'stock', 'user'],
+    'operator' => ['dashboard', 'inbound', 'outbound', 'bintobin', 'retur', 'transactions', 'stock'],
+];
+
+// Batas panjang password. Maksimal 72 karena bcrypt (password_hash) diam-diam
+// mengabaikan karakter setelah byte ke-72.
+const PASSWORD_MIN_LENGTH = 6;
+const PASSWORD_MAX_LENGTH = 72;
+
+// Pesan error kalau password tidak memenuhi syarat, atau null kalau sudah benar.
+function passwordError(string $password): ?string {
+    if (strlen($password) < PASSWORD_MIN_LENGTH) {
+        return 'Password minimal ' . PASSWORD_MIN_LENGTH . ' karakter';
+    }
+    if (strlen($password) > PASSWORD_MAX_LENGTH) {
+        return 'Password maksimal ' . PASSWORD_MAX_LENGTH . ' karakter';
+    }
+    return null;
+}
+
+function canAccess(string $role, string $page): bool {
+    return in_array($page, ROLE_PAGES[$role] ?? [], true);
+}
+
 // Mulai (atau lanjutkan) sesi PHP dengan pengaturan aplikasi ini.
-// Aman dipanggil berkali-kali dalam satu request.
+// Aman dipanggil berkali-kali dalam satu request, termasuk setelah session_write_close()
+// (mis. requireLogin() menutup sesi, lalu ganti password membukanya lagi).
 function startSession(): void {
+    // static: nilainya bertahan antar-panggilan dalam SATU request.
+    static $configured = false;
+
     if (session_status() === PHP_SESSION_ACTIVE) {
         return;
     }
+
+    // Pengaturan cukup sekali per request. Kalau diulang, ini_get('session.save_path') di
+    // bawah sudah berisi folder wms-rmpm, lalu ditambah "\wms-rmpm" lagi -> sesi tersimpan
+    // di folder yang salah dan user mendadak ter-logout.
+    if ($configured) {
+        session_start();
+        return;
+    }
+    $configured = true;
 
     // File sesi disimpan di folder sendiri, mis. C:\xampp\tmp\wms-rmpm.
     // Kenapa tidak langsung di C:\xampp\tmp: folder itu dipakai bersama aplikasi lain
@@ -135,9 +178,11 @@ function startSession(): void {
     session_start();
 }
 
-// Id user yang sedang login, atau null kalau belum login / sesi sudah menganggur lebih
+// Id user yang tercatat di sesi, atau null kalau belum login / sesi sudah menganggur lebih
 // dari SESSION_IDLE_SECONDS. Setiap panggilan yang berhasil memperpanjang sesi.
-function currentUserId(): ?int {
+// Hanya membaca sesi, TIDAK mengecek database. Controller memakai currentUser() atau
+// requireLogin(), yang juga memastikan user-nya masih aktif.
+function sessionUserId(): ?int {
     startSession();
 
     $userId       = (int) ($_SESSION['user_id'] ?? 0);
@@ -158,16 +203,47 @@ function currentUserId(): ?int {
     return $userId;
 }
 
-// Dipanggil di baris atas setiap controller JSON. Belum login -> balas 401 lalu berhenti.
-// Sudah login -> kembalikan id user (dicatat di ledger sebagai pelaku transaksi).
-function requireLogin(): int {
-    $userId = currentUserId();
-
+// User yang sedang login (id, username, full_name, role, is_active), atau null.
+//
+// Dibaca ulang dari database di SETIAP request, bukan disimpan di sesi saat login.
+// Kenapa: kalau admin mengubah role seseorang atau menonaktifkannya, perubahan itu harus
+// langsung berlaku, bukan menunggu orangnya logout (bisa sampai 8 jam).
+// Biayanya satu query per primary key, ringan sekali.
+function currentUser(): ?array {
+    $userId = sessionUserId();
     if ($userId === null) {
+        return null;
+    }
+
+    $db = new Database();
+    $user = (new UsersModel($db->getConnection()))->findById($userId);
+
+    // User sudah dinonaktifkan (atau tidak ada lagi) -> putuskan sesinya sekarang juga.
+    if (!$user || !(int) $user['is_active']) {
+        endSession();
+        return null;
+    }
+
+    return $user;
+}
+
+// Dipanggil di baris atas setiap controller JSON.
+//   Belum login / sesi habis / user dinonaktifkan  -> 401 lalu berhenti.
+//   $page diisi dan role user tidak boleh membuka menu itu -> 403 lalu berhenti.
+//   $page null = cukup login (controller pencarian yang dipakai beberapa menu).
+// Mengembalikan id user (dicatat di ledger sebagai pelaku transaksi).
+function requireLogin(?string $page = null): int {
+    $user = currentUser();
+
+    if ($user === null) {
         jsonResponse(['success' => false, 'error' => 'Sesi login habis, silakan login ulang'], 401);
     }
 
-    return $userId;
+    if ($page !== null && !canAccess($user['role'], $page)) {
+        jsonResponse(['success' => false, 'error' => 'Anda tidak punya akses ke menu ini'], 403);
+    }
+
+    return (int) $user['id'];
 }
 
 // Catat user yang baru berhasil login ke sesi.

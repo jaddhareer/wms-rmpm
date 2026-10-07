@@ -1,4 +1,4 @@
-import { setContent } from "./utilities/tools.js";
+import { setContent, q } from "./utilities/tools.js";
 import { initRouter, navigateTo } from "./utilities/router.js";
 import { dashboard } from "./pages/dashboard.js";
 import { inbound } from "./pages/Inbound.js";
@@ -7,34 +7,54 @@ import { outbound } from "./pages/outbound.js";
 import { retur } from "./pages/retur.js";
 import { transactions } from "./pages/transactions.js";
 import { stock } from "./pages/stock.js";
-import { fetchCurrentUser, showLoginScreen, onUserChange, logout } from "./utilities/auth.js";
+import { users, showChangePasswordPopup } from "./pages/users.js";
+import { fetchCurrentUser, showLoginScreen, onUserChange, logout, canOpen } from "./utilities/auth.js";
 
 const app = document.getElementById('app');
+
+// Menu navbar per kelompok (antar kelompok dipisah garis).
+// Nama menu di kiri = data-page = nama di ROLE_PAGES (config/helper.php).
+const MENU_GROUPS = [
+    [['dashboard', 'Dashboard']],
+    [['inbound', 'Inbound'], ['outbound', 'Outbound'], ['bintobin', 'Bin to Bin'], ['retur', 'Retur']],
+    [['transactions', 'Histori Transaksi'], ['stock', 'Stock Overview']],
+    [['user', 'User']],
+];
+const MENU_PAGES = MENU_GROUPS.flat().map(([page]) => page);
 
 function renderNavbar(){
     const nav = document.createElement('nav');
     nav.innerHTML = `
-        <button class="nav-btn" data-page="dashboard">Dashboard</button><hr>
-        <button class="nav-btn" data-page="inbound">Inbound</button>
-        <button class="nav-btn" data-page="outbound">Outbound</button>
-        <button class="nav-btn" data-page="bintobin">Bin to Bin</button>
-        <button class="nav-btn" data-page="retur">Retur</button><hr>
-        <button class="nav-btn" data-page="transactions">Histori Transaksi</button>
-        <button class="nav-btn" data-page="stock">Stock Overview</button><hr>
-        <button class="nav-btn" data-page="user">User</button><hr>
+        <div id="nav-menu"></div>
         <span id="nav-user"></span>
-        <button id="btn-logout">Logout</button>
+        <button type="button" id="btn-password">Ganti Password</button>
+        <button type="button" id="btn-logout">Logout</button>
     `;
 
-    nav.querySelectorAll('.nav-btn').forEach(menu => {
-        menu.addEventListener('click', (e) => {
-            navigateTo(e.target.getAttribute('data-page'));
-        })
-    })
+    // Event delegation: tombol menu digambar ulang kalau user berganti (renderMenu),
+    // jadi listener dipasang di <nav> yang tetap ada, bukan di tiap tombol.
+    nav.addEventListener('click', (e) => {
+        const menu = e.target.closest('.nav-btn');
+        if (menu) navigateTo(menu.dataset.page);
+    });
 
+    nav.querySelector('#btn-password').addEventListener('click', showChangePasswordPopup);
     nav.querySelector('#btn-logout').addEventListener('click', handleLogout);
 
     return nav;
+}
+
+// Tombol menu sesuai hak akses user yang login. Kelompok yang kosong (mis. User untuk
+// operator) tidak digambar, supaya tidak ada garis pemisah dobel.
+// Isinya teks tetap dari MENU_GROUPS (bukan data user), jadi tidak perlu escapeHtml.
+function renderMenu(){
+    q('#nav-menu').innerHTML = MENU_GROUPS
+        .map(group => group.filter(([page]) => canOpen(page)))
+        .filter(group => group.length > 0)
+        .map(group => group
+            .map(([page, label]) => `<button class="nav-btn" data-page="${page}">${label}</button>`)
+            .join('\n'))
+        .join('<hr>') + '<hr>';
 }
 
 // Nama user yang sedang login di navbar.
@@ -42,6 +62,11 @@ function renderNavbar(){
 function renderUserInfo(user){
     const el = document.getElementById('nav-user');
     if (el) el.textContent = user ? `${user.full_name || user.username} (${user.role})` : '';
+}
+
+function handleUserChange(user){
+    renderMenu();
+    renderUserInfo(user);
 }
 
 async function handleLogout(){
@@ -64,6 +89,13 @@ async function handleLogout(){
 // Menggambar halaman. Dipanggil oleh router (klik menu, back/forward, refresh).
 // params = parameter dari URL, mis. { code: 'RMPMOB26090007' } untuk #retur?code=...
 function renderPage(page, params = {}){
+    // Menu yang ada tapi tidak boleh untuk role ini (mis. operator mengetik #user di URL).
+    // Ini hanya tampilan: kalau controller-nya tetap dipanggil, server membalas 403.
+    if (MENU_PAGES.includes(page) && !canOpen(page)) {
+        setContent(`<h1>Tidak punya akses</h1><p>Menu ini tidak tersedia untuk role Anda.</p>`);
+        return;
+    }
+
     if(page === 'dashboard'){
         dashboard();
     } else if(page === 'inbound'){
@@ -79,7 +111,7 @@ function renderPage(page, params = {}){
     } else if(page === 'stock'){
         stock();
     } else if(page === 'user'){
-        setContent(`<h1>INI HALAMAN user</h1>`)
+        users();
     } else {
         setContent(`<h1>Halaman tidak ditemukan</h1>`)
     }
@@ -107,9 +139,10 @@ async function initApp(){
     contentArea.id = 'content-area';
     app.appendChild(contentArea);
 
-    // Nama di navbar ikut berganti kalau login ulang di popup memakai akun lain.
-    onUserChange(renderUserInfo);
-    renderUserInfo(user);
+    // Menu & nama di navbar ikut berganti kalau login ulang di popup memakai akun lain,
+    // atau admin mengubah nama lengkapnya sendiri di menu User.
+    onUserChange(handleUserChange);
+    handleUserChange(user);
 
     // Halaman awal diambil dari URL, jadi setelah login operator langsung ke halaman
     // yang tadi dibuka (mis. #retur?code=...).
