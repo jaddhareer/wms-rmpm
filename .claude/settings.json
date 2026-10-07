@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git show*)",
+      "Bash(php -l *)",
+      "Bash(/c/xampp/mysql/bin/mysql.exe -u root wms_rmpm -e \"SELECT *)",
+      "Bash(/c/xampp/mysql/bin/mysql.exe -u root wms_rmpm -e \"SHOW *)",
+      "Bash(/c/xampp/mysql/bin/mysql.exe -u root wms_rmpm -e \"DESCRIBE *)",
+      "Bash(curl *http://localhost/wms-rmpm/*)"
+    ],
+    "deny": [
+      "Bash(*mysql*schema.sql*)",
+      "PowerShell(*mysql*schema.sql*)",
+      "Bash(*mysql*DROP *)",
+      "Bash(*mysql*TRUNCATE *)",
+      "Bash(*mysql*DELETE FROM transactions*)",
+      "Bash(*mysql*UPDATE transactions*)"
+    ]
+  }
+}

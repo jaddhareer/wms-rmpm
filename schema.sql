@@ -70,7 +70,7 @@ CREATE TABLE transactions (
     id                BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     transaction_code  VARCHAR(20)   NOT NULL, -- mis. RMPMIB26090001
     transaction_type  ENUM('INBOUND','OUTBOUND','MUTASI','RETUR') NOT NULL,
-    reference_code    VARCHAR(20)   NULL, -- RETUR: kode OUTBOUND asal (lihat migrations/001)
+    reference_code    VARCHAR(20)   NULL, -- RETUR: kode OUTBOUND asal
 
     item_code     VARCHAR(20)   NOT NULL,
     exp_date      DATE          NOT NULL,

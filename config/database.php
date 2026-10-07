@@ -15,7 +15,11 @@ class Database {
             $this->conn = new PDO($koneksi, $this->username, $this->password);
             $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         } catch (PDOException $e) {
-            echo "Koneksi Gagal: " . $e->getMessage();
+            // Balas JSON (format sama dengan controller lain) supaya frontend bisa menampilkan
+            // result.error. Dulu di sini echo teks biasa lalu return null: res.json() di frontend
+            // gagal parse dan controller lanjut jalan dengan $conn = null.
+            // jsonResponse() ada di helper.php (dimuat bootstrap.php) dan memanggil exit.
+            jsonResponse(['success' => false, 'error' => 'Koneksi database gagal: ' . $e->getMessage()], 500);
         }
 
         return $this->conn;
