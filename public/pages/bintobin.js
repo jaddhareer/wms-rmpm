@@ -1,5 +1,6 @@
 import { setContent, q, escapeHtml, binDatalistHtml } from "../utilities/tools.js";
 import { openPopup, closePopup } from "../utilities/popups.js";
+import { materialAutocomplete, ITEM_CODE_PATTERN } from "../utilities/materialAutocomplete.js";
 
 export function bintobin(){
     setContent(`
@@ -7,7 +8,7 @@ export function bintobin(){
         <div>
             <label for="source">Source Bin</label> <input type="text" id="source-bin" placeholder="A-01-A-01">
             <label for="target-bin">Target Bin</label> <input type="text" id="target-bin" list="bin-options" placeholder="A-01-A-02">${binDatalistHtml()}<hr>
-            <label for="item-code">Item Code</label> <input type="text" id="item-code"><br>
+            <label for="item-code">Item Code</label> <input type="text" id="item-code" size="30"><br>
             <label for="exp-date">Expired Date</label> <input type="date" id="exp-date"><br>
             <label for="pallet-number">Pallet Number</label> <input type="text" id="pallet-number"><br>
             <label for="qty">Quantity</label> <input type="number" id="qty" min="0" step="any" disabled><br>
@@ -20,6 +21,12 @@ export function bintobin(){
     // Pallet di floor tidak punya QR bin -> operator cukup scan item code.
     q('#source-bin').addEventListener('input', () => autoFillData('bin'));
     q('#item-code').addEventListener('input', () => autoFillData('item'));
+    // Ketik deskripsi -> pilih saran -> sama seperti scan item code.
+    // Hanya material yang masih ada stoknya yang disarankan.
+    materialAutocomplete(q('#item-code'), {
+        inStockOnly: true,
+        onSelect: () => autoFillData('item'),
+    });
 }
 
 // mode = input mana yang memicu: 'bin' (source bin) atau 'item' (item code).
@@ -76,7 +83,9 @@ async function autoFillData(mode){
                     q('#target-bin').focus();
                 });
         }
-    } else if (mode === 'item' && itemCode && itemCode.length === 9) {
+    } else if (mode === 'item' && itemCode && ITEM_CODE_PATTERN.test(itemCode)) {
+        // Hanya item code 9 digit angka. Deskripsi 9 huruf (mis. "quadriple") tidak
+        // boleh ikut mencari stok; deskripsi dipilih lewat saran autocomplete.
         const response = await fetch(`controller/StockController.php?item_code=${encodeURIComponent(itemCode)}`);
         const data = await response.json();
         if (data.length === 0) {

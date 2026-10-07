@@ -1,5 +1,6 @@
 import { setContent, q, escapeHtml } from "../utilities/tools.js";
 import { openPopup, closePopup } from "../utilities/popups.js";
+import { materialAutocomplete, ITEM_CODE_PATTERN } from "../utilities/materialAutocomplete.js";
 
 // Pallet yang sudah di-Add tapi belum di-submit.
 let state = [];
@@ -20,7 +21,7 @@ export function outbound(){
                 <option value="QUALITY">Quality</option>
             </select><hr>
 
-            <label for="item-code">Item Code</label>     <input type="text" id="item-code">
+            <label for="item-code">Item Code</label>     <input type="text" id="item-code" size="30">
             <button type="button" id="btn-choose">Pilih Pallet</button><br>
             <label for="item-name">Item Name</label>     <input type="text" id="item-name" disabled><br>
             <label for="exp-date">Expired Date</label>   <input type="text" id="exp-date" disabled><br>
@@ -50,6 +51,12 @@ export function outbound(){
     `);
 
     q('#item-code').addEventListener('input', handleItemCodeInput);
+    // Ketik deskripsi -> pilih saran -> sama seperti scan item code: daftar pallet dimuat.
+    // Hanya material yang masih ada stoknya yang disarankan.
+    materialAutocomplete(q('#item-code'), {
+        inStockOnly: true,
+        onSelect: (material) => loadPallets(material.item_code),
+    });
     q('#btn-choose').addEventListener('click', () => loadPallets(q('#item-code').value.trim()));
     q('#qty-fisik').addEventListener('input', calculateQtySap);
     q('#btn-add').addEventListener('click', handleAdd);
@@ -71,13 +78,20 @@ function handleItemCodeInput(){
     const itemCode = q('#item-code').value.trim();
     selectPallet(null);
 
-    if (itemCode.length === 9) {
+    // Hanya item code penuh (9 digit). Deskripsi diketik -> lewat saran autocomplete.
+    if (ITEM_CODE_PATTERN.test(itemCode)) {
         loadPallets(itemCode);
     }
 }
 
 async function loadPallets(itemCode){
     if (!itemCode) return;
+
+    // Tombol "Pilih Pallet" bisa diklik saat input masih berisi deskripsi.
+    if (!ITEM_CODE_PATTERN.test(itemCode)) {
+        alert('Item code belum valid: scan item code atau pilih dari saran');
+        return;
+    }
 
     const res = await fetch(`controller/StockController.php?item_code=${encodeURIComponent(itemCode)}`);
     const data = await res.json();

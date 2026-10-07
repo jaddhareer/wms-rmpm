@@ -1,11 +1,7 @@
 import { setContent, q, escapeHtml, binDatalistHtml } from "../utilities/tools.js";
-import { autocomplete } from "../utilities/autocomplete.js";
+import { materialAutocomplete, ITEM_CODE_PATTERN } from "../utilities/materialAutocomplete.js";
 
 const MATERIAL_API = 'controller/MaterialController.php';
-
-// Item code selalu 9 digit angka. Pola ini membedakan "scan / ketik item code penuh"
-// (langsung dicari persis) dari "ketik deskripsi" (pakai saran autocomplete).
-const ITEM_CODE_PATTERN = /^\d{9}$/;
 
 // Pallet yang sudah di-Add tapi belum di-submit.
 let state = [];
@@ -20,7 +16,7 @@ export function inbound(){
         <h2>Inbound</h2>
         <div>
             <label for="source">Supplier</label>                     <input type="text" id="source"><hr>
-            <label for="item-code">Item Code</label>                 <input type="text" id="item-code" size="30" placeholder="scan item code / ketik deskripsi"><br>
+            <label for="item-code">Item Code</label>                 <input type="text" id="item-code" size="30"><br>
             <label for="item-name">Item Name</label>                 <input type="text" id="item-name" disabled><br>
             <label for="exp-date">Expired Date</label>               <input type="date" id="exp-date"><br>
             <label for="qty-fisik">Quantity</label>                  <input type="number" id="qty-fisik" min="0" step="any">
@@ -50,11 +46,8 @@ export function inbound(){
     q('#btn-submit').addEventListener('click', handleSubmit);
     q('#item-code').addEventListener('input', handleItemCodeInput);
     // Ketik deskripsi -> muncul saran -> diklik -> isi input diganti item code.
-    autocomplete(q('#item-code'), {
-        search:     searchMaterial,
-        renderItem: (m) => `${escapeHtml(m.item_name)} <small style="color:#666">${escapeHtml(m.item_code)}</small>`,
-        onSelect:   selectMaterial,
-    });
+    // Inbound: semua material boleh (barang baru datang, stoknya memang belum ada).
+    materialAutocomplete(q('#item-code'), { onSelect: selectMaterial });
     q('#qty-fisik').addEventListener('input', calculateQtySap);
     q('#conversion-factor').addEventListener('input', calculateQtySap);
     // Satu listener di tbody untuk semua tombol hapus (event delegation),
@@ -64,22 +57,9 @@ export function inbound(){
     renderPreview();
 }
 
-// Saran autocomplete dari material master.
-async function searchMaterial(term){
-    // Item code penuh sudah dicari persis oleh handleItemCodeInput, tidak perlu saran.
-    if (ITEM_CODE_PATTERN.test(term)) return null;
-
-    const res = await fetch(`${MATERIAL_API}?q=${encodeURIComponent(term)}`);
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error);
-
-    return data.data;
-}
-
-// Saran diklik: input diganti item code, lalu field lain diisi dari data saran itu.
+// Saran dipilih (input sudah berisi item code): isi field lain dari data saran itu.
 // Data saran sudah lengkap (uom, faktor), jadi tidak perlu fetch lagi.
 function selectMaterial(material){
-    q('#item-code').value = material.item_code;
     currentMaterial = material;
     fillMaterialFields();
     q('#exp-date').focus();

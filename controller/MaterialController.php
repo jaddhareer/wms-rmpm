@@ -10,6 +10,7 @@ $conn = $db->getConnection();
 $material = new Material($conn);
 
 // Mode 1: ?q=kata  -> daftar saran untuk autocomplete (cari di description & item code).
+//         &in_stock=1 -> hanya material yang masih ada stoknya.
 if (isset($_GET['q'])) {
     $keyword = sanitize($_GET['q']);
 
@@ -18,7 +19,9 @@ if (isset($_GET['q'])) {
         jsonResponse(['success' => true, 'data' => []]);
     }
 
-    jsonResponse(['success' => true, 'data' => $material->search($keyword)]);
+    $inStockOnly = ($_GET['in_stock'] ?? '') === '1';
+
+    jsonResponse(['success' => true, 'data' => $material->search($keyword, $inStockOnly)]);
 }
 
 // Mode 2: ?item_code=xxx  -> satu material persis (dipakai saat item code di-scan/diketik penuh).
