@@ -265,10 +265,17 @@ async function showDetail(code){
             ${head.transaction_type === 'OUTBOUND'
                 ? `<button type="button" id="btn-retur">Retur</button>`
                 : ''}
+            <button type="button" id="btn-print">Print</button>
             <button type="button" id="btn-close-popup">Tutup</button>
         `);
 
         box.querySelector('#btn-close-popup').addEventListener('click', closePopup);
+
+        // Print: halaman cetak (dengan tanda tangan) dibuka di tab baru,
+        // halaman SPA ini tetap di tempatnya.
+        box.querySelector('#btn-print').addEventListener('click', () => {
+            window.open(`controller/TransactionPrint.php?code=${encodeURIComponent(code)}`, '_blank');
+        });
 
         // Hanya dokumen OUTBOUND yang bisa diretur -> buka menu Retur dengan ID ini terisi.
         box.querySelector('#btn-retur')?.addEventListener('click', () => {

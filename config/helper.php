@@ -77,3 +77,16 @@ function isValidDate(string $date): bool {
     }
     return checkdate((int) $m[2], (int) $m[3], (int) $m[1]);
 }
+
+// Escape teks sebelum ditulis ke HTML (pasangan escapeHtml() di tools.js).
+// Dipakai di file view PHP, mis. e($row['remark']) di dalam tag <?= ... (tag pendek echo).
+function e($value): string {
+    return htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
+}
+
+// Angka dari database ("1500.250") -> "1.500,25" (format Indonesia, maks 3 desimal).
+// Pasangan formatNumber() di tools.js, supaya angka di layar dan di cetakan sama.
+function formatNumber($value): string {
+    $text = number_format((float) $value, 3, ',', '.'); // "1.500,250"
+    return rtrim(rtrim($text, '0'), ',');               // buang nol & koma di belakang
+}

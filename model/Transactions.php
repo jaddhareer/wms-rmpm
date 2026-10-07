@@ -80,7 +80,7 @@ class Transactions {
 
     // Kolom yang ditampilkan di tabel. Satu baris = satu pallet dalam satu transaksi.
     private const COLUMNS = '
-        t.id, t.transaction_code, t.transaction_type,
+        t.id, t.transaction_code, t.transaction_type, t.reference_code,
         t.item_code, m.description, t.exp_date, t.pallet_number,
         t.source, t.source_bin, t.destination, t.destination_bin,
         t.qty_actual, m.uom_fisik, t.qty_sap, m.uom_sap,

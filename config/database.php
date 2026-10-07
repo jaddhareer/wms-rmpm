@@ -2,7 +2,7 @@
 
 class Database {
     private $host = "localhost";
-    private $database = "wms-rmpm";
+    private $database = "wms_rmpm";
     private $username = "root";
     private $password = "";
     public $conn;
