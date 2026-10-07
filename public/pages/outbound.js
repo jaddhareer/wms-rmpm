@@ -1,4 +1,5 @@
 import { setContent, q, escapeHtml } from "../utilities/tools.js";
+import { apiFetch } from "../utilities/auth.js";
 import { openPopup, closePopup } from "../utilities/popups.js";
 import { materialAutocomplete, ITEM_CODE_PATTERN } from "../utilities/materialAutocomplete.js";
 
@@ -93,7 +94,7 @@ async function loadPallets(itemCode){
         return;
     }
 
-    const res = await fetch(`controller/StockController.php?item_code=${encodeURIComponent(itemCode)}`);
+    const res = await apiFetch(`controller/StockController.php?item_code=${encodeURIComponent(itemCode)}`);
     const data = await res.json();
 
     // Abaikan jawaban basi (input sudah berubah / sudah pindah halaman).
@@ -265,7 +266,7 @@ async function handleSubmit(){
     button.disabled = true;
 
     try {
-        const res = await fetch('controller/Outbound.php', {
+        const res = await apiFetch('controller/Outbound.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(state),

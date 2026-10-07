@@ -9,6 +9,8 @@ header('Content-Type: application/json');
 
 require_once dirname(__DIR__) . '/config/bootstrap.php';
 
+requireLogin(); // belum login -> 401 dan berhenti di sini
+
 $allowedPeriods = ['daily', 'weekly', 'monthly', 'yearly'];
 $rangeDays = ['week' => 7, 'month' => 30, 'year' => 365];
 

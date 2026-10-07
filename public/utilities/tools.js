@@ -1,3 +1,5 @@
+import { apiFetch } from "./auth.js";
+
 // Fungsi-fungsi kecil yang dipakai banyak halaman.
 
 export function setContent(html){
@@ -53,7 +55,7 @@ export function binDatalistHtml(){
 // fetch -> Blob (data biner di memori browser) -> link sementara -> klik otomatis.
 // Kalau server membalas JSON, berarti terjadi error: pesannya dilempar sebagai Error.
 export async function downloadFile(url, fallbackName = 'export.xlsx'){
-    const res = await fetch(url);
+    const res = await apiFetch(url);
     const type = res.headers.get('Content-Type') || '';
 
     if (!res.ok || type.includes('application/json')) {

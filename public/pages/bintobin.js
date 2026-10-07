@@ -1,4 +1,5 @@
 import { setContent, q, escapeHtml, binDatalistHtml } from "../utilities/tools.js";
+import { apiFetch } from "../utilities/auth.js";
 import { openPopup, closePopup } from "../utilities/popups.js";
 import { materialAutocomplete, ITEM_CODE_PATTERN } from "../utilities/materialAutocomplete.js";
 
@@ -34,7 +35,7 @@ async function autoFillData(mode){
     const sourceBin = q('#source-bin').value.trim() ? q('#source-bin').value.trim() : null;
     const itemCode = q('#item-code').value.trim() ? q('#item-code').value.trim() : null;
     if (mode === 'bin' && sourceBin && sourceBin.length === 9) {
-        const response = await fetch(`controller/StockController.php?source_bin=${encodeURIComponent(sourceBin)}`);
+        const response = await apiFetch(`controller/StockController.php?source_bin=${encodeURIComponent(sourceBin)}`);
         const data = await response.json();
         if (data.length === 0) {
             alert(`Tidak ada stok tersisa untuk bin ${sourceBin}`);
@@ -86,7 +87,7 @@ async function autoFillData(mode){
     } else if (mode === 'item' && itemCode && ITEM_CODE_PATTERN.test(itemCode)) {
         // Hanya item code 9 digit angka. Deskripsi 9 huruf (mis. "quadriple") tidak
         // boleh ikut mencari stok; deskripsi dipilih lewat saran autocomplete.
-        const response = await fetch(`controller/StockController.php?item_code=${encodeURIComponent(itemCode)}`);
+        const response = await apiFetch(`controller/StockController.php?item_code=${encodeURIComponent(itemCode)}`);
         const data = await response.json();
         if (data.length === 0) {
             alert(`Tidak ada stok tersisa untuk item ${itemCode}`);
@@ -166,7 +167,7 @@ async function handleMove(){
     button.disabled = true;
 
     try {
-        const moveResponse = await fetch('controller/BinToBin.php', {
+        const moveResponse = await apiFetch('controller/BinToBin.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(moveData),

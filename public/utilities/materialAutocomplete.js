@@ -1,4 +1,5 @@
 import { escapeHtml } from "./tools.js";
+import { apiFetch } from "./auth.js";
 import { autocomplete } from "./autocomplete.js";
 
 // Autocomplete khusus input item code. Dipakai Inbound, Outbound, dan Bin to Bin
@@ -26,7 +27,7 @@ export function materialAutocomplete(input, { onSelect, inStockOnly = false }){
             const params = new URLSearchParams({ q: term });
             if (inStockOnly) params.set('in_stock', '1');
 
-            const res = await fetch(`${MATERIAL_API}?${params}`);
+            const res = await apiFetch(`${MATERIAL_API}?${params}`);
             const data = await res.json();
             if (!res.ok) throw new Error(data.error);
 

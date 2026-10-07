@@ -90,3 +90,110 @@ function formatNumber($value): string {
     $text = number_format((float) $value, 3, ',', '.'); // "1.500,250"
     return rtrim(rtrim($text, '0'), ',');               // buang nol & koma di belakang
 }
+
+// =========================================================
+// Sesi login (PHP session)
+//
+// Server mencatat "siapa yang login" di file sesi. Browser hanya memegang cookie berisi
+// ID sesi acak, yang otomatis ikut di setiap fetch ke server yang sama.
+// =========================================================
+
+// Sesi berakhir kalau tidak ada request sama sekali selama ini (detik). 8 jam = 1 shift.
+const SESSION_IDLE_SECONDS = 8 * 60 * 60;
+
+// Mulai (atau lanjutkan) sesi PHP dengan pengaturan aplikasi ini.
+// Aman dipanggil berkali-kali dalam satu request.
+function startSession(): void {
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        return;
+    }
+
+    // File sesi disimpan di folder sendiri, mis. C:\xampp\tmp\wms-rmpm.
+    // Kenapa tidak langsung di C:\xampp\tmp: folder itu dipakai bersama aplikasi lain
+    // (phpMyAdmin). PHP sesekali menghapus file sesi yang lebih tua dari gc_maxlifetime
+    // milik script yang SEDANG jalan (default 24 menit), jadi sesi 8 jam kita bisa ikut
+    // terhapus oleh aplikasi lain. Di folder sendiri, hanya aplikasi ini yang membersihkan.
+    $paths = explode(';', (string) ini_get('session.save_path')); // formatnya bisa "N;path"
+    $dir = rtrim(end($paths) ?: sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR . 'wms-rmpm';
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0700, true); // @: dua request bersamaan bisa sama-sama mencoba membuatnya
+    }
+    session_save_path($dir);
+
+    ini_set('session.gc_maxlifetime', (string) SESSION_IDLE_SECONDS);
+    ini_set('session.use_strict_mode', '1'); // tolak ID sesi karangan yang tidak pernah dibuat server
+
+    // Nama cookie sendiri, supaya tidak bentrok dengan aplikasi lain di localhost (PHPSESSID).
+    session_name('WMSRMPMSESSID');
+    session_set_cookie_params([
+        'lifetime' => 0,      // cookie hilang saat browser ditutup
+        'path'     => '/',
+        'httponly' => true,   // JavaScript tidak bisa membaca cookie -> tidak bisa dicuri lewat XSS
+        'samesite' => 'Lax',  // cookie tidak ikut di POST dari situs lain -> cegah CSRF
+    ]);
+
+    session_start();
+}
+
+// Id user yang sedang login, atau null kalau belum login / sesi sudah menganggur lebih
+// dari SESSION_IDLE_SECONDS. Setiap panggilan yang berhasil memperpanjang sesi.
+function currentUserId(): ?int {
+    startSession();
+
+    $userId       = (int) ($_SESSION['user_id'] ?? 0);
+    $lastActivity = (int) ($_SESSION['last_activity'] ?? 0);
+
+    if ($userId === 0 || time() - $lastActivity > SESSION_IDLE_SECONDS) {
+        endSession();
+        return null;
+    }
+
+    $_SESSION['last_activity'] = time();
+
+    // Lepas kunci file sesi. Selama sesi terbuka PHP mengunci file-nya, sehingga request
+    // lain dari browser yang sama (mis. autocomplete saat export Excel berjalan) harus
+    // antre. Controller cukup tahu user_id, jadi sesi langsung ditutup di sini.
+    session_write_close();
+
+    return $userId;
+}
+
+// Dipanggil di baris atas setiap controller JSON. Belum login -> balas 401 lalu berhenti.
+// Sudah login -> kembalikan id user (dicatat di ledger sebagai pelaku transaksi).
+function requireLogin(): int {
+    $userId = currentUserId();
+
+    if ($userId === null) {
+        jsonResponse(['success' => false, 'error' => 'Sesi login habis, silakan login ulang'], 401);
+    }
+
+    return $userId;
+}
+
+// Catat user yang baru berhasil login ke sesi.
+function beginUserSession(int $userId): void {
+    startSession();
+
+    // ID sesi baru setiap kali login (session fixation): kalau penyerang sempat "menanam"
+    // ID sesi di browser korban sebelum login, ID itu tidak ikut menjadi sesi yang login.
+    session_regenerate_id(true);
+
+    $_SESSION['user_id']       = $userId;
+    $_SESSION['last_activity'] = time();
+    session_write_close();
+}
+
+// Hapus sesi di server dan cookie-nya di browser (logout / sesi kedaluwarsa).
+function endSession(): void {
+    startSession();
+    $_SESSION = [];
+    session_destroy();
+
+    $params = session_get_cookie_params();
+    setcookie(session_name(), '', [
+        'expires'  => 1, // tanggal di masa lalu = browser menghapus cookie
+        'path'     => $params['path'],
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+}

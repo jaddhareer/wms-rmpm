@@ -4,6 +4,8 @@ header('Content-Type: application/json');
 
 require_once dirname(__DIR__) . '/config/bootstrap.php';
 
+requireLogin(); // belum login -> 401 dan berhenti di sini
+
 $itemCode = sanitize($_GET['item_code'] ?? '');
 $sourceBin = sanitize($_GET['source_bin'] ?? '');
 

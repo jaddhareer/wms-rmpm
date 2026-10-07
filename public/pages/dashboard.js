@@ -1,4 +1,5 @@
 import { setContent, q, escapeHtml, formatNumber } from "../utilities/tools.js";
+import { apiFetch } from "../utilities/auth.js";
 
 // Dashboard: okupansi saat ini (meter per lokasi) + pergerakan pallet inbound/outbound
 // per periode (grafik batang Chart.js).
@@ -143,7 +144,7 @@ async function loadData(){
     q('#tr-figure')?.classList.add('loading');
 
     try {
-        const res = await fetch(`${API}?period=${encodeURIComponent(period)}&range=${encodeURIComponent(range)}`);
+        const res = await apiFetch(`${API}?period=${encodeURIComponent(period)}&range=${encodeURIComponent(range)}`);
         const result = await res.json();
 
         if (myRequest !== requestId || !q('#occ-cards')) return; // jawaban basi / sudah pindah menu

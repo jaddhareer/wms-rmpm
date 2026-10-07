@@ -1,4 +1,5 @@
 import { setContent, q, escapeHtml, debounce, formatNumber, downloadFile } from "../utilities/tools.js";
+import { apiFetch } from "../utilities/auth.js";
 import { openPopup, closePopup } from "../utilities/popups.js";
 import { paginationHtml } from "../utilities/pagination.js";
 import { navigateTo } from "../utilities/router.js";
@@ -153,7 +154,7 @@ async function loadData(){
     const myRequest = ++requestId;
 
     try {
-        const res = await fetch(`${API}?${buildQuery()}`);
+        const res = await apiFetch(`${API}?${buildQuery()}`);
         const result = await res.json();
 
         // Jawaban basi: sudah ada request yang lebih baru, atau operator sudah pindah menu.
@@ -217,7 +218,7 @@ function renderInfo(p){
 
 async function showDetail(code){
     try {
-        const res = await fetch(`${API}?detail=${encodeURIComponent(code)}`);
+        const res = await apiFetch(`${API}?detail=${encodeURIComponent(code)}`);
         const result = await res.json();
 
         if (!result.success || result.data.length === 0) {

@@ -4,6 +4,9 @@ header('Content-Type: application/json');
 
 require_once dirname(__DIR__) . '/config/bootstrap.php';
 
+// Belum login -> 401 dan berhenti di sini. $userId dicatat di ledger sebagai pelaku transaksi.
+$userId = requireLogin();
+
 $items = readJsonBody();
 
 if (count($items) === 0) {
@@ -12,9 +15,6 @@ if (count($items) === 0) {
 
 $db = new Database();
 $conn = $db->getConnection();
-
-// TODO: ganti dengan user_id dari sesi login begitu fitur login sudah ada
-$userId = 1;
 
 $allowedDestinations = ['PRODUKSI', 'QUALITY'];
 

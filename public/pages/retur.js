@@ -1,4 +1,5 @@
 import { setContent, q, escapeHtml, formatNumber, binDatalistHtml } from "../utilities/tools.js";
+import { apiFetch } from "../utilities/auth.js";
 import { replaceParams } from "../utilities/router.js";
 
 // Retur: barang dari PRODUKSI/QUALITY kembali ke gudang, ke nomor pallet asalnya.
@@ -114,7 +115,7 @@ async function loadReference(rawCode){
     q('#ref-info').textContent = 'Memuat...';
 
     try {
-        const res = await fetch(`${API}?code=${encodeURIComponent(code)}`);
+        const res = await apiFetch(`${API}?code=${encodeURIComponent(code)}`);
         const result = await res.json();
 
         if (myRequest !== requestId || !q('#lines-body')) return; // jawaban basi
@@ -312,7 +313,7 @@ async function handleSubmit(){
     };
 
     try {
-        const res = await fetch(API, {
+        const res = await apiFetch(API, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),

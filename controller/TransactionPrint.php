@@ -10,6 +10,13 @@
 
 require_once dirname(__DIR__) . '/config/bootstrap.php';
 
+// Halaman ini dibuka di tab baru (bukan lewat fetch), jadi kalau belum login
+// balasannya teks yang bisa dibaca orang, bukan JSON 401 seperti requireLogin().
+if (currentUserId() === null) {
+    http_response_code(401);
+    exit('Sesi login habis. Login dulu di aplikasi WMS RMPM, lalu buka ulang halaman cetak ini.');
+}
+
 // Judul dokumen & label tanda tangan per jenis transaksi.
 // Ubah di sini kalau istilah di lapangan berbeda.
 const PRINT_DOCS = [

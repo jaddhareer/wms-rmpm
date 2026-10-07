@@ -1,4 +1,5 @@
 import { setContent, q, escapeHtml, debounce, formatNumber, binDatalistHtml, downloadFile } from "../utilities/tools.js";
+import { apiFetch } from "../utilities/auth.js";
 import { openPopup, closePopup } from "../utilities/popups.js";
 import { paginationHtml } from "../utilities/pagination.js";
 
@@ -109,7 +110,7 @@ async function loadData(){
     const myRequest = ++requestId;
 
     try {
-        const res = await fetch(`${API}?${buildQuery()}`);
+        const res = await apiFetch(`${API}?${buildQuery()}`);
         const result = await res.json();
 
         if (myRequest !== requestId || !q('#stock-body')) return; // jawaban basi
@@ -180,7 +181,7 @@ async function showLotDetail(itemCode, expDate){
         params.set('detail_item', itemCode);
         params.set('detail_exp', expDate);
 
-        const res = await fetch(`${API}?${params}`);
+        const res = await apiFetch(`${API}?${params}`);
         const result = await res.json();
 
         if (!result.success || result.data.length === 0) {

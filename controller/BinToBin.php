@@ -4,6 +4,9 @@ header('Content-Type: application/json');
 
 require_once dirname(__DIR__) . '/config/bootstrap.php';
 
+// Belum login -> 401 dan berhenti di sini. $userId dicatat di ledger sebagai pelaku transaksi.
+$userId = requireLogin();
+
 $data = readJsonBody();
 
 $sourceBin    = strtoupper(sanitize($data['source_bin'] ?? ''));
@@ -22,9 +25,6 @@ if ($sourceBin === $targetBin) {
 
 $db = new Database();
 $conn = $db->getConnection();
-
-// TODO: ganti dengan user_id dari sesi login begitu fitur login sudah ada
-$userId = 1;
 
 try {
     $conn->beginTransaction();

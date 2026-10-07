@@ -13,3 +13,4 @@ require_once dirname(__DIR__) . '/model/Stock.php';
 require_once dirname(__DIR__) . '/model/Transactions.php';
 require_once dirname(__DIR__) . '/model/Material.php';
 require_once dirname(__DIR__) . '/model/Dashboard.php';
+require_once dirname(__DIR__) . '/model/UsersModel.php';

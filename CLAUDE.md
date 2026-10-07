@@ -16,8 +16,9 @@ Dijalankan lokal di XAMPP (`C:\xampp`): Apache, PHP 8.2, MariaDB 10.4.
 
 - Database: nama di `config/database.php` (sekarang `wms_rmpm`), user `root` tanpa password.
 - `schema.sql` men-DROP dan membuat ulang tabel `stock` & `transactions` (datanya hilang). `users` dan `material_master` hanya dibuat kalau belum ada. **Jangan dijalankan tanpa izin Hariri.**
-- Data awal: jalankan `material_master_insert.sql`, dan harus ada user dengan `id = 1` (lihat "Belum dikerjakan").
-- Buka lewat `http://localhost/wms-rmpm/`.
+- Data awal: jalankan `material_master_insert.sql`, dan harus ada minimal satu user di tabel `users` (sekarang `admin`, id 1) untuk login. Sebelum User Management jadi, user baru dibuat manual dengan `password_hash()`.
+- Buka lewat `http://localhost/wms-rmpm/`, lalu login.
+- File sesi login disimpan di `C:\xampp\tmp\wms-rmpm` (folder sendiri, lihat `startSession()` di `helper.php`).
 
 ## Verifikasi (wajib sebelum menyerahkan kode)
 
@@ -50,6 +51,7 @@ index.html   kerangka SPA
 
 ## Aturan backend
 
+- **Setiap controller wajib login**: panggil `requireLogin()` tepat setelah `require bootstrap.php` (belum login → 401 JSON). Controller tulis memakai `$userId = requireLogin();` sebagai `user_id` di ledger. Halaman HTML (`TransactionPrint.php`) memakai `currentUserId()` dan membalas teks biasa. Pengecualian hanya `UsersController.php` (login/logout/me). Sesi = PHP session, berakhir setelah 8 jam tanpa request (`SESSION_IDLE_SECONDS`).
 - Respons JSON lewat `jsonResponse($data, $status)` (memanggil `exit`). Body POST dikirim sebagai JSON → baca dengan `readJsonBody()`, bukan `$_POST`. GET → `$_GET`.
 - Transaksi tulis: validasi dulu → `beginTransaction()` → langkah-langkah → `commit()`. Pelanggaran aturan bisnis dilempar sebagai `Exception`. Di `catch`: **`rollBack()` dulu, baru `jsonResponse()`** (karena jsonResponse exit).
 - Update stok anti-race: `UPDATE ... WHERE qty_actual >= :qty_check` lalu cek `rowCount() > 0`. Placeholder bernama tidak boleh dipakai dua kali dalam satu query (pakai nama berbeda, mis. `:qty_out` & `:qty_check`). `findPallet()` memakai `SELECT ... FOR UPDATE`.
@@ -77,13 +79,11 @@ index.html   kerangka SPA
 - Fetch yang bisa basi (ketik cepat / pindah halaman) memakai penanda `requestId`. Filter saat mengetik memakai `debounce`.
 - Router: `public/utilities/router.js`, URL hash dengan parameter (mis. `#retur?code=RMPMOB...`). Halaman memanggil `navigateTo()` dari router, bukan dari main.js (menghindari import melingkar).
 - **Path fetch selalu relatif**: `controller/Xxx.php`, JANGAN `/wms-rmpm/controller/...` (supaya tidak terikat nama folder/host).
+- **Request ke controller memakai `apiFetch()` dari `utilities/auth.js`, bukan `fetch()` langsung.** Kalau server membalas 401, `apiFetch` membuka popup login ulang lalu mengirim ulang request yang sama (isi form tidak hilang). Hanya `auth.js` sendiri yang memakai `fetch()` (login/logout/me). `auth.js` tidak boleh meng-import `tools.js` (tools.js sudah meng-import auth.js).
 - Item code = 9 digit angka → pakai `ITEM_CODE_PATTERN` dari `utilities/materialAutocomplete.js` (bukan `length === 9`). Input item code di Inbound/Outbound/Bin to Bin memakai `materialAutocomplete()` (ketik deskripsi → pilih → input diganti item code). Outbound & Bin to Bin hanya menyarankan material yang ada stoknya.
 - Bin to Bin: source bin otomatis dicari saat panjangnya 9 karakter (scan QR rak). Ini disengaja, pallet di floor dicari lewat scan item code.
 - Library JS disimpan lokal di `public/vendor/` (Chart.js, signature_pad). Jangan pakai CDN, gudang tidak selalu ada internet.
 
 ## Belum dikerjakan
 
-1. **Menu Login**: menggantikan `$userId = 1` yang masih hardcode di `controller/Inbound.php`, `Outbound.php`, `BinToBin.php`, `ReturController.php`. Kolom `users.password_hash` sudah ada.
-2. **User Management**: setelah Login jadi.
-
-Kerangka sudah ada tapi masih kosong: `controller/UsersController.php`, `model/UsersModel.php`, `public/pages/users.js`. Menu "User" di `main.js` (`data-page="user"`) masih menampilkan placeholder dan belum meng-import `users.js`. Isi file-file ini, jangan membuat file baru di tempat lain.
+1. **User Management** (Login sudah jadi). Tambahkan aksinya di `controller/UsersController.php` (class, satu method per aksi) dan SQL-nya di `model/UsersModel.php`. Halamannya di `public/pages/users.js` (masih kosong). Menu "User" di `main.js` (`data-page="user"`) masih placeholder dan belum meng-import `users.js`. Role belum dipakai untuk membatasi menu; pembatasan per role dikerjakan di sini. Jangan membuat file baru di tempat lain.

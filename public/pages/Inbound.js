@@ -1,4 +1,5 @@
 import { setContent, q, escapeHtml, binDatalistHtml } from "../utilities/tools.js";
+import { apiFetch } from "../utilities/auth.js";
 import { materialAutocomplete, ITEM_CODE_PATTERN } from "../utilities/materialAutocomplete.js";
 
 const MATERIAL_API = 'controller/MaterialController.php';
@@ -75,7 +76,7 @@ async function handleItemCodeInput(){
     // 9 huruf (mis. "quadriple") tidak boleh memicu alert "tidak ada".
     if (!ITEM_CODE_PATTERN.test(itemCode)) return;
 
-    const res = await fetch(`${MATERIAL_API}?item_code=${encodeURIComponent(itemCode)}`);
+    const res = await apiFetch(`${MATERIAL_API}?item_code=${encodeURIComponent(itemCode)}`);
     const data = await res.json();
 
     // Selama menunggu fetch, operator bisa sudah mengubah isi input
@@ -132,7 +133,7 @@ async function handleAdd(){
         return;
     }
 
-    const res = await fetch(`controller/PalletController.php?item_code=${encodeURIComponent(itemCode)}&exp_date=${encodeURIComponent(expDate)}`);
+    const res = await apiFetch(`controller/PalletController.php?item_code=${encodeURIComponent(itemCode)}&exp_date=${encodeURIComponent(expDate)}`);
     const data = await res.json();
 
     if (!res.ok) {
@@ -212,7 +213,7 @@ async function handleSubmit(){
     button.disabled = true; // cegah submit dobel kalau tombol diklik dua kali
 
     try {
-        const res = await fetch('controller/Inbound.php', {
+        const res = await apiFetch('controller/Inbound.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(state),

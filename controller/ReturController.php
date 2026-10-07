@@ -15,6 +15,9 @@ header('Content-Type: application/json');
 
 require_once dirname(__DIR__) . '/config/bootstrap.php';
 
+// Belum login -> 401 dan berhenti di sini. $userId dicatat di ledger sebagai pelaku transaksi.
+$userId = requireLogin();
+
 $db = new Database();
 $conn = $db->getConnection();
 
@@ -50,9 +53,6 @@ $items = is_array($body['items'] ?? null) ? $body['items'] : [];
 if ($referenceCode === '' || count($items) === 0) {
     jsonResponse(['success' => false, 'error' => 'ID transaksi outbound dan daftar pallet wajib diisi'], 400);
 }
-
-// TODO: ganti dengan user_id dari sesi login begitu fitur login sudah ada
-$userId = 1;
 
 $remark = "Retur dari transaksi $referenceCode" . ($operatorRemark !== '' ? " - $operatorRemark" : '');
 
