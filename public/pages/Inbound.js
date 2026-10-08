@@ -1,5 +1,6 @@
-import { setContent, q, escapeHtml, binDatalistHtml } from "../utilities/tools.js";
+import { setContent, q, escapeHtml, binDatalistHtml, emptyRowHtml } from "../utilities/tools.js";
 import { apiFetch } from "../utilities/auth.js";
+import { toast } from "../utilities/toast.js";
 import { materialAutocomplete, ITEM_CODE_PATTERN } from "../utilities/materialAutocomplete.js";
 
 const MATERIAL_API = 'controller/MaterialController.php';
@@ -14,33 +15,78 @@ export function inbound(){
     currentMaterial = null;
 
     setContent(`
-        <h2>Inbound</h2>
-        <div>
-            <label for="source">Supplier</label>                     <input type="text" id="source"><hr>
-            <label for="item-code">Item Code</label>                 <input type="text" id="item-code" size="30"><br>
-            <label for="item-name">Item Name</label>                 <input type="text" id="item-name" disabled><br>
-            <label for="exp-date">Expired Date</label>               <input type="date" id="exp-date"><br>
-            <label for="qty-fisik">Quantity</label>                  <input type="number" id="qty-fisik" min="0" step="any">
-                                                                     <input type="text" id="uom-fisik" disabled size="6"><br>
-            <label for="conversion-factor">Conversion Factor</label> <input type="number" id="conversion-factor" min="0" step="any"><br>
-            <label for="qty-sap">GR Qty</label>                      <input type="text" id="qty-sap" disabled>
-                                                                     <input type="text" id="uom-sap" disabled size="6"><hr>
-            <label for="bin">Bin</label>                             <input type="text" id="bin" list="bin-options" placeholder="kosong = STAGE">${binDatalistHtml()}<br>
-            <label for="remark">Remark</label>                       <input type="text" id="remark"><hr>
-            <button type="button" id="btn-add">Add</button>
-        </div>
+        <div class="page-header"><h2>Inbound</h2></div>
 
-        <table border="1">
-            <thead>
-                <tr>
-                    <th>Item Code</th><th>Description</th><th>Supplier</th><th>Exp Date</th><th>Pallet</th>
-                    <th>Qty</th><th>UoM</th><th>Faktor</th><th>Qty SAP</th><th>UoM SAP</th><th>Bin</th><th>Remark</th><th></th>
-                </tr>
-            </thead>
-            <tbody id="preview-body"></tbody>
-        </table>
+        <section class="card">
+            <div class="form-grid">
+                <div class="field">
+                    <label for="source">Supplier</label>
+                    <input type="text" id="source">
+                </div>
+                <hr>
+                <div class="field">
+                    <label for="item-code">Item Code</label>
+                    <input type="text" id="item-code">
+                </div>
+                <div class="field wide">
+                    <label for="item-name">Item Name</label>
+                    <input type="text" id="item-name" disabled>
+                </div>
+                <div class="field">
+                    <label for="exp-date">Expired Date</label>
+                    <input type="date" id="exp-date">
+                </div>
+                <div class="field">
+                    <label for="qty-fisik">Quantity</label>
+                    <div class="input-group">
+                        <input type="number" id="qty-fisik" min="0" step="any">
+                        <input type="text" id="uom-fisik" class="unit" disabled aria-label="UoM">
+                    </div>
+                </div>
+                <div class="field">
+                    <label for="conversion-factor">Conversion Factor</label>
+                    <input type="number" id="conversion-factor" min="0" step="any">
+                </div>
+                <div class="field">
+                    <label for="qty-sap">GR Qty</label>
+                    <div class="input-group">
+                        <input type="text" id="qty-sap" disabled>
+                        <input type="text" id="uom-sap" class="unit" disabled aria-label="UoM SAP">
+                    </div>
+                </div>
+                <hr>
+                <div class="field">
+                    <label for="bin">Bin</label>
+                    <input type="text" id="bin" list="bin-options" placeholder="kosong = STAGE">${binDatalistHtml()}
+                </div>
+                <div class="field wide">
+                    <label for="remark">Remark</label>
+                    <input type="text" id="remark">
+                </div>
+            </div>
+            <div class="form-actions">
+                <button type="button" id="btn-add" class="btn-soft" data-icon="plus">Add</button>
+            </div>
+        </section>
 
-        <button type="button" id="btn-submit">Submit</button>
+        <section class="card">
+            <h3 class="card-title">Daftar Pallet <span class="badge" id="preview-count">0</span></h3>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Item Code</th><th>Description</th><th>Supplier</th><th>Exp Date</th><th class="num">Pallet</th>
+                            <th class="num">Qty</th><th>UoM</th><th class="num">Faktor</th><th class="num">Qty SAP</th><th>UoM SAP</th>
+                            <th>Bin</th><th>Remark</th><th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="preview-body"></tbody>
+                </table>
+            </div>
+            <div class="form-actions">
+                <button type="button" id="btn-submit" class="btn-primary" data-icon="save">Submit</button>
+            </div>
+        </section>
     `);
 
     q('#btn-add').addEventListener('click', handleAdd);
@@ -84,7 +130,7 @@ async function handleItemCodeInput(){
     if (q('#item-code')?.value.trim() !== itemCode) return;
 
     if (!res.ok) {
-        alert(data.error);
+        toast(data.error, 'error');
         return;
     }
 
@@ -117,19 +163,19 @@ async function handleAdd(){
     const conversionFactor = parseFloat(q('#conversion-factor').value);
 
     if (!currentMaterial || currentMaterial.item_code !== itemCode) {
-        alert('Item Code belum valid');
+        toast('Item Code belum valid', 'warning');
         return;
     }
     if (!expDate) {
-        alert('Expired Date wajib diisi');
+        toast('Expired Date wajib diisi', 'warning');
         return;
     }
     if (!(qtyFisik > 0)) {
-        alert('Quantity harus lebih dari 0');
+        toast('Quantity harus lebih dari 0', 'warning');
         return;
     }
     if (!(conversionFactor > 0)) {
-        alert('Conversion Factor harus lebih dari 0');
+        toast('Conversion Factor harus lebih dari 0', 'warning');
         return;
     }
 
@@ -137,7 +183,7 @@ async function handleAdd(){
     const data = await res.json();
 
     if (!res.ok) {
-        alert(data.error);
+        toast(data.error, 'error');
         return;
     }
 
@@ -176,21 +222,28 @@ async function handleAdd(){
 }
 
 function renderPreview(){
+    q('#preview-count').textContent = state.length;
+
+    if (state.length === 0) {
+        q('#preview-body').innerHTML = emptyRowHtml(13, 'Belum ada pallet. Isi form di atas lalu klik Add.');
+        return;
+    }
+
     q('#preview-body').innerHTML = state.map((row, index) => `
         <tr>
             <td>${escapeHtml(row.item_code)}</td>
-            <td>${escapeHtml(row.description)}</td>
+            <td class="wrap">${escapeHtml(row.description)}</td>
             <td>${escapeHtml(row.source)}</td>
             <td>${escapeHtml(row.exp_date)}</td>
-            <td>${escapeHtml(row.pallet_number)}</td>
-            <td>${escapeHtml(row.qty_actual)}</td>
+            <td class="num">${escapeHtml(row.pallet_number)}</td>
+            <td class="num">${escapeHtml(row.qty_actual)}</td>
             <td>${escapeHtml(row.uom_fisik)}</td>
-            <td>${escapeHtml(row.conversion_factor)}</td>
-            <td>${escapeHtml(row.qty_sap)}</td>
+            <td class="num">${escapeHtml(row.conversion_factor)}</td>
+            <td class="num">${escapeHtml(row.qty_sap)}</td>
             <td>${escapeHtml(row.uom_sap)}</td>
             <td>${escapeHtml(row.bin)}</td>
-            <td>${escapeHtml(row.remark)}</td>
-            <td><button type="button" class="btn-delete" data-index="${index}">Hapus</button></td>
+            <td class="wrap">${escapeHtml(row.remark)}</td>
+            <td><button type="button" class="btn-delete btn-sm btn-danger" data-index="${index}" data-icon="trash">Hapus</button></td>
         </tr>
     `).join('');
 }
@@ -205,7 +258,7 @@ function handleDeleteRow(e){
 
 async function handleSubmit(){
     if (state.length === 0) {
-        alert('Belum ada pallet yang di-Add');
+        toast('Belum ada pallet yang di-Add', 'warning');
         return;
     }
 
@@ -221,14 +274,14 @@ async function handleSubmit(){
         const data = await res.json();
 
         if (data.success) {
-            alert('Berhasil disimpan: ' + data.transaction_code);
+            toast('Berhasil disimpan: ' + data.transaction_code, 'success');
             state = [];
             renderPreview();
         } else {
-            alert('Gagal: ' + data.error);
+            toast('Gagal: ' + data.error, 'error');
         }
     } catch (err) {
-        alert('Tidak bisa menghubungi server: ' + err.message);
+        toast('Tidak bisa menghubungi server: ' + err.message, 'error');
     } finally {
         button.disabled = false;
     }

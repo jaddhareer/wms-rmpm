@@ -34,7 +34,7 @@ export function materialAutocomplete(input, { onSelect, inStockOnly = false }){
             return data.data;
         },
 
-        renderItem: (m) => `${escapeHtml(m.item_name)} <small style="color:#666">${escapeHtml(m.item_code)}</small>`,
+        renderItem: (m) => `${escapeHtml(m.item_name)} <small>${escapeHtml(m.item_code)}</small>`,
 
         onSelect: (m) => {
             // Mengisi value lewat kode TIDAK memicu event 'input', jadi pencarian

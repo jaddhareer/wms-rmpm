@@ -16,17 +16,16 @@
 // Keyboard: panah atas/bawah memilih, Enter memakai saran yang disorot, Esc menutup.
 
 export function autocomplete(input, { search, renderItem, onSelect, minLength = 2, delay = 250 }){
-    // Bungkus input dengan <span position:relative>, supaya kotak saran
-    // (position:absolute; top:100%) menempel tepat di bawah input.
+    // Bungkus input dengan <span class="ac-wrap"> (position:relative), supaya kotak saran
+    // (position:absolute; top:100%) menempel tepat di bawah input. Tampilan: style.css.
     const wrapper = document.createElement('span');
-    wrapper.style.cssText = 'position:relative; display:inline-block;';
+    wrapper.className = 'ac-wrap';
     input.before(wrapper);
     wrapper.appendChild(input);
 
     const list = document.createElement('div');
-    list.style.cssText = 'display:none; position:absolute; top:100%; left:0; z-index:100;'
-        + ' width:max-content; min-width:100%; max-width:480px; max-height:260px; overflow-y:auto;'
-        + ' background:#fff; border:1px solid #999; box-shadow:0 2px 6px rgba(0,0,0,.2);';
+    list.className = 'ac-list';
+    list.style.display = 'none'; // buka/tutup lewat style.display (lihat isOpen)
     wrapper.appendChild(list);
 
     input.setAttribute('autocomplete', 'off'); // matikan saran bawaan browser supaya tidak menumpuk
@@ -56,13 +55,13 @@ export function autocomplete(input, { search, renderItem, onSelect, minLength = 
     function showMessage(text){
         items = [];
         active = -1;
-        list.innerHTML = `<div style="padding:4px 8px; color:#777;">${text}</div>`;
+        list.innerHTML = `<div class="ac-message">${text}</div>`;
         list.style.display = 'block';
     }
 
     function render(){
         list.innerHTML = items.map((item, index) => `
-            <div data-index="${index}" style="padding:4px 8px; cursor:pointer; border-bottom:1px solid #eee;">
+            <div class="ac-item" data-index="${index}">
                 ${renderItem(item)}
             </div>
         `).join('');
@@ -70,11 +69,11 @@ export function autocomplete(input, { search, renderItem, onSelect, minLength = 
         highlight();
     }
 
-    // Hanya ganti warna baris, TIDAK menggambar ulang list. Kalau list digambar
+    // Hanya ganti kelas 'active' (warna sorot), TIDAK menggambar ulang list. Kalau list digambar
     // ulang saat mouse bergerak, elemen di bawah kursor berganti dan klik bisa hilang.
     function highlight(){
         list.querySelectorAll('[data-index]').forEach((row) => {
-            row.style.background = Number(row.dataset.index) === active ? '#dbe8fb' : '';
+            row.classList.toggle('active', Number(row.dataset.index) === active);
         });
         list.querySelector(`[data-index="${active}"]`)?.scrollIntoView({ block: 'nearest' });
     }

@@ -1,5 +1,6 @@
-import { setContent, q, escapeHtml, formatNumber, binDatalistHtml } from "../utilities/tools.js";
+import { setContent, q, escapeHtml, formatNumber, binDatalistHtml, emptyRowHtml } from "../utilities/tools.js";
 import { apiFetch } from "../utilities/auth.js";
+import { toast } from "../utilities/toast.js";
 import { replaceParams } from "../utilities/router.js";
 
 // Retur: barang dari PRODUKSI/QUALITY kembali ke gudang, ke nomor pallet asalnya.
@@ -18,52 +19,86 @@ let requestId = 0;
 // params datang dari router, mis. { code: 'RMPMOB26090007' } saat dibuka dari popup transaksi.
 export function retur(params = {}){
     setContent(`
-        <h2>Retur</h2>
+        <div class="page-header"><h2>Retur</h2></div>
 
-        <div>
-            <label for="ref-code">ID Transaksi Outbound</label>
-            <input type="text" id="ref-code" placeholder="RMPMOB..." size="20">
-            <button type="button" id="btn-load">Muat</button>
-        </div>
-        <p id="ref-info"></p>
+        <section class="card">
+            <div class="form-grid">
+                <div class="field wide">
+                    <label for="ref-code">ID Transaksi Outbound</label>
+                    <div class="input-group">
+                        <input type="text" id="ref-code" placeholder="RMPMOB...">
+                        <button type="button" id="btn-load" class="btn-primary" data-icon="search">Muat</button>
+                    </div>
+                    <p class="hint" id="ref-info"></p>
+                </div>
+            </div>
 
-        <table border="1">
-            <thead>
-                <tr>
-                    <th>Item Code</th><th>Description</th><th>Exp Date</th><th>Pallet</th><th>Asal</th>
-                    <th>Keluar</th><th>Sudah Diretur</th><th>Sisa</th><th>Posisi Pallet Sekarang</th><th></th>
-                </tr>
-            </thead>
-            <tbody id="lines-body"></tbody>
-        </table>
+            <div class="table-wrap mt">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Item Code</th><th>Description</th><th>Exp Date</th><th class="num">Pallet</th><th>Asal</th>
+                            <th class="num">Keluar</th><th class="num">Sudah Diretur</th><th class="num">Sisa</th>
+                            <th>Posisi Pallet Sekarang</th><th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="lines-body"></tbody>
+                </table>
+            </div>
+        </section>
 
-        <hr>
-        <div>
-            <b>Pallet dipilih:</b> <span id="sel-info">-</span><br>
-            <label for="qty">Qty Retur</label>
-            <input type="number" id="qty" min="0" step="any" disabled> <span id="sel-uom"></span>
-            &nbsp; Qty SAP: <input type="text" id="qty-sap" disabled size="10"> <span id="sel-uom-sap"></span><br>
-            <label for="bin">Bin</label>
-            <input type="text" id="bin" list="bin-options" disabled>${binDatalistHtml()}
-            <small id="bin-hint"></small><br>
-            <button type="button" id="btn-add" disabled>Add</button>
-        </div>
+        <section class="card">
+            <h3 class="card-title">Pallet Dipilih</h3>
+            <div class="callout" id="sel-info">Belum ada. Klik Pilih pada tabel pallet di atas.</div>
+            <div class="form-grid">
+                <div class="field">
+                    <label for="qty">Qty Retur</label>
+                    <div class="input-group">
+                        <input type="number" id="qty" min="0" step="any" disabled>
+                        <span class="unit" id="sel-uom"></span>
+                    </div>
+                </div>
+                <div class="field">
+                    <label for="qty-sap">Qty SAP</label>
+                    <div class="input-group">
+                        <input type="text" id="qty-sap" disabled>
+                        <span class="unit" id="sel-uom-sap"></span>
+                    </div>
+                </div>
+                <div class="field wide">
+                    <label for="bin">Bin</label>
+                    <input type="text" id="bin" list="bin-options" disabled>${binDatalistHtml()}
+                    <small class="hint" id="bin-hint"></small>
+                </div>
+            </div>
+            <div class="form-actions">
+                <button type="button" id="btn-add" class="btn-soft" data-icon="plus" disabled>Add</button>
+            </div>
+        </section>
 
-        <hr>
-        <label for="remark">Remark</label>
-        <input type="text" id="remark" size="40" placeholder="opsional, ditambahkan setelah 'Retur dari transaksi ...'">
-
-        <table border="1">
-            <thead>
-                <tr>
-                    <th>Item Code</th><th>Description</th><th>Exp Date</th><th>Pallet</th>
-                    <th>Qty</th><th>UoM</th><th>Qty SAP</th><th>Bin</th><th></th>
-                </tr>
-            </thead>
-            <tbody id="cart-body"></tbody>
-        </table>
-
-        <button type="button" id="btn-submit">Submit</button>
+        <section class="card">
+            <h3 class="card-title">Daftar Retur <span class="badge" id="cart-count">0</span></h3>
+            <div class="form-grid mb">
+                <div class="field full">
+                    <label for="remark">Remark</label>
+                    <input type="text" id="remark" placeholder="opsional, ditambahkan setelah 'Retur dari transaksi ...'">
+                </div>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Item Code</th><th>Description</th><th>Exp Date</th><th class="num">Pallet</th>
+                            <th class="num">Qty</th><th>UoM</th><th class="num">Qty SAP</th><th>Bin</th><th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="cart-body"></tbody>
+                </table>
+            </div>
+            <div class="form-actions">
+                <button type="button" id="btn-submit" class="btn-primary" data-icon="save">Submit</button>
+            </div>
+        </section>
     `);
 
     q('#btn-load').addEventListener('click', () => loadReference(q('#ref-code').value));
@@ -77,6 +112,7 @@ export function retur(params = {}){
     q('#btn-submit').addEventListener('click', handleSubmit);
 
     renderCart();
+    renderLines();
 
     // Dibuka dengan ID (dari popup transaksi) -> langsung muat dokumen itu.
     // Dibuka dari menu tanpa ID -> tampilkan lagi dokumen terakhir (kalau ada).
@@ -101,7 +137,7 @@ function remainingOf(line){
 async function loadReference(rawCode){
     const code = rawCode.trim().toUpperCase();
     if (!code) {
-        alert('Isi ID transaksi outbound dulu');
+        toast('Isi ID transaksi outbound dulu', 'warning');
         return;
     }
 
@@ -144,6 +180,11 @@ async function loadReference(rawCode){
 }
 
 function renderLines(){
+    if (lines.length === 0) {
+        q('#lines-body').innerHTML = emptyRowHtml(10, 'Isi ID transaksi outbound lalu klik Muat.');
+        return;
+    }
+
     q('#lines-body').innerHTML = lines.map((line, index) => {
         const remaining = remainingOf(line);
         const stockQty = parseFloat(line.stock_qty);
@@ -154,18 +195,18 @@ function renderLines(){
         return `
             <tr>
                 <td>${escapeHtml(line.item_code)}</td>
-                <td>${escapeHtml(line.description)}</td>
+                <td class="wrap">${escapeHtml(line.description)}</td>
                 <td>${escapeHtml(line.exp_date)}</td>
-                <td style="text-align:right">${escapeHtml(line.pallet_number)}</td>
+                <td class="num">${escapeHtml(line.pallet_number)}</td>
                 <td>${escapeHtml(line.destination)}</td>
-                <td style="text-align:right">${formatNumber(line.qty_out)} ${escapeHtml(line.uom_fisik)}</td>
-                <td style="text-align:right">${formatNumber(line.qty_returned)}</td>
-                <td style="text-align:right">${formatNumber(remaining)}</td>
+                <td class="num">${formatNumber(line.qty_out)} ${escapeHtml(line.uom_fisik)}</td>
+                <td class="num">${formatNumber(line.qty_returned)}</td>
+                <td class="num">${formatNumber(remaining)}</td>
                 <td>${escapeHtml(position)}</td>
                 <td>
                     ${remaining > 0
-                        ? `<button type="button" class="btn-pick" data-index="${index}">Pilih</button>`
-                        : 'Selesai'}
+                        ? `<button type="button" class="btn-pick btn-sm btn-soft" data-index="${index}" data-icon="check">Pilih</button>`
+                        : '<span class="badge badge-active" data-icon="check">Selesai</span>'}
                 </td>
             </tr>
         `;
@@ -190,7 +231,7 @@ function selectLine(line){
     q('#btn-add').disabled = !ready;
 
     if (!line) {
-        q('#sel-info').textContent = '-';
+        q('#sel-info').textContent = 'Belum ada. Klik Pilih pada tabel pallet di atas.';
         q('#qty').value = '';
         q('#bin').value = '';
         q('#bin').disabled = true;
@@ -233,19 +274,19 @@ function handleAdd(){
     const bin = q('#bin').value.trim().toUpperCase();
 
     if (cart.some(c => keyOf(c) === keyOf(selected))) {
-        alert('Pallet ini sudah ada di daftar. Hapus dulu kalau mau mengubah qty.');
+        toast('Pallet ini sudah ada di daftar. Hapus dulu kalau mau mengubah qty.', 'warning');
         return;
     }
     if (!(qty > 0)) {
-        alert('Qty retur harus lebih dari 0');
+        toast('Qty retur harus lebih dari 0', 'warning');
         return;
     }
     if (qty > remaining + 0.0005) {
-        alert(`Qty retur maksimal ${formatNumber(remaining)}`);
+        toast(`Qty retur maksimal ${formatNumber(remaining)}`, 'warning');
         return;
     }
     if (palletEmpty && !bin) {
-        alert('Pallet sudah kosong, bin wajib diisi');
+        toast('Pallet sudah kosong, bin wajib diisi', 'warning');
         return;
     }
 
@@ -266,17 +307,24 @@ function handleAdd(){
 }
 
 function renderCart(){
+    q('#cart-count').textContent = cart.length;
+
+    if (cart.length === 0) {
+        q('#cart-body').innerHTML = emptyRowHtml(9, 'Belum ada pallet retur. Pilih pallet, isi qty, lalu klik Add.');
+        return;
+    }
+
     q('#cart-body').innerHTML = cart.map((row, index) => `
         <tr>
             <td>${escapeHtml(row.item_code)}</td>
-            <td>${escapeHtml(row.description)}</td>
+            <td class="wrap">${escapeHtml(row.description)}</td>
             <td>${escapeHtml(row.exp_date)}</td>
-            <td style="text-align:right">${escapeHtml(row.pallet_number)}</td>
-            <td style="text-align:right">${formatNumber(row.qty_actual)}</td>
+            <td class="num">${escapeHtml(row.pallet_number)}</td>
+            <td class="num">${formatNumber(row.qty_actual)}</td>
             <td>${escapeHtml(row.uom_fisik)}</td>
-            <td style="text-align:right">${escapeHtml(row.qty_sap)}</td>
+            <td class="num">${escapeHtml(row.qty_sap)}</td>
             <td>${escapeHtml(row.bin)}</td>
-            <td><button type="button" class="btn-delete" data-index="${index}">Hapus</button></td>
+            <td><button type="button" class="btn-delete btn-sm btn-danger" data-index="${index}" data-icon="trash">Hapus</button></td>
         </tr>
     `).join('');
 }
@@ -292,7 +340,7 @@ function handleDeleteCart(e){
 
 async function handleSubmit(){
     if (!refCode || cart.length === 0) {
-        alert('Belum ada pallet yang di-Add');
+        toast('Belum ada pallet yang di-Add', 'warning');
         return;
     }
 
@@ -321,16 +369,16 @@ async function handleSubmit(){
         const result = await res.json();
 
         if (result.success) {
-            alert('Retur berhasil disimpan: ' + result.transaction_code);
+            toast('Retur berhasil disimpan: ' + result.transaction_code, 'success');
             cart = [];
             q('#remark').value = '';
             renderCart();
             loadReference(refCode); // muat ulang supaya "Sudah Diretur" & posisi pallet terbaru
         } else {
-            alert('Gagal: ' + result.error);
+            toast('Gagal: ' + result.error, 'error');
         }
     } catch (err) {
-        alert('Tidak bisa menghubungi server: ' + err.message);
+        toast('Tidak bisa menghubungi server: ' + err.message, 'error');
     } finally {
         button.disabled = false;
     }

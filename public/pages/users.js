@@ -1,6 +1,7 @@
 import { setContent, q, escapeHtml } from "../utilities/tools.js";
 import { apiFetch, getCurrentUser, fetchCurrentUser } from "../utilities/auth.js";
-import { openPopup, closePopup } from "../utilities/popups.js";
+import { toast } from "../utilities/toast.js";
+import { openPopup, closePopup, confirmDialog } from "../utilities/popups.js";
 
 // User Management (menu "User", hanya admin) + popup Ganti Password (semua user, dari navbar).
 //
@@ -17,15 +18,21 @@ let requestId = 0;   // penanda jawaban basi
 
 export function users(){
     setContent(`
-        <h2>User Management</h2>
-        <button type="button" id="btn-add-user">Tambah User</button>
-        <p id="user-info">Memuat...</p>
-        <table border="1">
-            <thead>
-                <tr><th>Username</th><th>Nama Lengkap</th><th>Role</th><th>Status</th><th>Dibuat</th><th>Aksi</th></tr>
-            </thead>
-            <tbody id="user-body"></tbody>
-        </table>
+        <div class="page-header">
+            <h2>User Management</h2>
+            <button type="button" id="btn-add-user" class="btn-primary" data-icon="user-plus">Tambah User</button>
+        </div>
+        <section class="card">
+            <p class="table-info" id="user-info">Memuat...</p>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr><th>Username</th><th>Nama Lengkap</th><th>Role</th><th>Status</th><th>Dibuat</th><th>Aksi</th></tr>
+                    </thead>
+                    <tbody id="user-body"></tbody>
+                </table>
+            </div>
+        </section>
     `);
 
     q('#btn-add-user').addEventListener('click', () => showUserForm(null));
@@ -83,16 +90,20 @@ function renderRows(){
 
         // Akun sendiri tidak punya tombol Nonaktifkan (server juga menolaknya).
         return `
-            <tr style="${user.is_active ? '' : 'color:#898781'}">
-                <td>${escapeHtml(user.username)}${isMe ? ' <b>(Anda)</b>' : ''}</td>
+            <tr class="${user.is_active ? '' : 'is-inactive'}">
+                <td>${escapeHtml(user.username)}${isMe ? ' <span class="badge">Anda</span>' : ''}</td>
                 <td>${escapeHtml(user.full_name)}</td>
                 <td>${escapeHtml(user.role)}</td>
-                <td>${user.is_active ? 'Aktif' : 'Nonaktif'}</td>
+                <td>${user.is_active ? '<span class="badge badge-active">Aktif</span>' : '<span class="badge">Nonaktif</span>'}</td>
                 <td>${escapeHtml(user.created_at)}</td>
                 <td>
-                    <button type="button" data-action="edit" data-id="${id}">Edit</button>
-                    <button type="button" data-action="reset" data-id="${id}">Reset Password</button>
-                    ${isMe ? '' : `<button type="button" data-action="toggle" data-id="${id}">${user.is_active ? 'Nonaktifkan' : 'Aktifkan'}</button>`}
+                    <div class="row-actions">
+                        <button type="button" class="btn-sm" data-action="edit" data-id="${id}" data-icon="edit">Edit</button>
+                        <button type="button" class="btn-sm" data-action="reset" data-id="${id}" data-icon="key">Reset Password</button>
+                        ${isMe ? '' : user.is_active
+                            ? `<button type="button" class="btn-sm btn-danger" data-action="toggle" data-id="${id}" data-icon="user-x">Nonaktifkan</button>`
+                            : `<button type="button" class="btn-sm btn-success-soft" data-action="toggle" data-id="${id}" data-icon="user-check">Aktifkan</button>`}
+                    </div>
                 </td>
             </tr>
         `;
@@ -107,15 +118,19 @@ function renderRows(){
 // supaya bindPopupForm() bisa mencocokkan keduanya di semua form.
 function passwordFieldsHtml(label){
     return `
-        <label>${label}<br><input name="password" type="password" required autocomplete="new-password"></label><br>
-        <label>Ulangi ${label.toLowerCase()}<br><input name="password_confirm" type="password" required autocomplete="new-password"></label><br>
+        <label class="field"><span class="field-label">${label}</span>
+            <input name="password" type="password" required autocomplete="new-password"></label>
+        <label class="field"><span class="field-label">Ulangi ${label.toLowerCase()}</span>
+            <input name="password_confirm" type="password" required autocomplete="new-password"></label>
     `;
 }
 
 const FORM_BUTTONS = `
-    <p class="form-error" style="color:#c62828"></p>
-    <button type="submit">Simpan</button>
-    <button type="button" class="btn-cancel">Batal</button>
+    <p class="form-error"></p>
+    <div class="form-actions">
+        <button type="submit" class="btn-primary" data-icon="save">Simpan</button>
+        <button type="button" class="btn-cancel" data-icon="x">Batal</button>
+    </div>
 `;
 
 // POST ke UsersController. Melempar Error berisi pesan dari server kalau gagal.
@@ -179,20 +194,20 @@ function showUserForm(user){
 
     const box = openPopup(`
         <h3>${isNew ? 'Tambah User' : 'Edit User'}</h3>
-        <form>
-            <label>Username<br>
+        <form class="form-stack">
+            <label class="field"><span class="field-label">Username</span>
                 ${isNew
                     ? '<input name="username" required maxlength="50" autocomplete="off">'
                     : `<input value="${escapeHtml(user.username)}" disabled>`}
-            </label><br>
-            ${isNew ? '<small>Huruf kecil, angka, titik, garis bawah, strip. Tidak bisa diubah setelah dibuat.</small><br>' : ''}
-            <label>Nama Lengkap<br>
+                ${isNew ? '<small class="hint">Huruf kecil, angka, titik, garis bawah, strip. Tidak bisa diubah setelah dibuat.</small>' : ''}
+            </label>
+            <label class="field"><span class="field-label">Nama Lengkap</span>
                 <input name="full_name" required maxlength="100" value="${escapeHtml(user?.full_name)}">
-            </label><br>
-            <label>Role<br>
+            </label>
+            <label class="field"><span class="field-label">Role</span>
                 <select name="role" required ${isMe ? 'disabled' : ''}>${roleOptions}</select>
-            </label><br>
-            ${isMe ? '<small>Role akun sendiri tidak bisa diubah.</small><br>' : ''}
+                ${isMe ? '<small class="hint">Role akun sendiri tidak bisa diubah.</small>' : ''}
+            </label>
             ${isNew ? passwordFieldsHtml('Password') : ''}
             ${FORM_BUTTONS}
         </form>
@@ -224,7 +239,7 @@ function showUserForm(user){
 function showResetPassword(user){
     const box = openPopup(`
         <h3>Reset Password: ${escapeHtml(user.username)}</h3>
-        <form>
+        <form class="form-stack">
             ${passwordFieldsHtml('Password baru')}
             ${FORM_BUTTONS}
         </form>
@@ -234,23 +249,33 @@ function showResetPassword(user){
 
     bindPopupForm(box,
         (f) => ['reset_password', { id: user.id, password: f.password.value }],
-        () => alert(`Password ${user.username} sudah di-reset. Beritahukan password baru ke yang bersangkutan.`)
+        () => toast(`Password ${user.username} sudah di-reset. Beritahukan password baru ke yang bersangkutan.`, 'success')
     );
 }
 
 async function toggleActive(user){
     const activate = !user.is_active;
-    const question = activate
-        ? `Aktifkan kembali user ${user.username}?`
-        : `Nonaktifkan user ${user.username}?\n\nDia tidak bisa login lagi dan sesinya langsung terputus. Riwayat transaksinya tetap ada.`;
-
-    if (!confirm(question)) return;
+    const ok = await confirmDialog(activate
+        ? {
+            title: `Aktifkan kembali user ${user.username}?`,
+            message: 'User ini bisa login lagi dengan password terakhirnya.',
+            confirmText: 'Aktifkan',
+            icon: 'user-check',
+        }
+        : {
+            title: `Nonaktifkan user ${user.username}?`,
+            message: 'Dia tidak bisa login lagi dan sesinya langsung terputus. Riwayat transaksinya tetap ada.',
+            confirmText: 'Nonaktifkan',
+            icon: 'user-x',
+            danger: true,
+        });
+    if (!ok) return;
 
     try {
         await postAction('set_active', { id: user.id, is_active: activate });
         loadUsers();
     } catch (err) {
-        alert('Gagal: ' + err.message);
+        toast('Gagal: ' + err.message, 'error');
     }
 }
 
@@ -259,8 +284,9 @@ async function toggleActive(user){
 export function showChangePasswordPopup(){
     const box = openPopup(`
         <h3>Ganti Password</h3>
-        <form>
-            <label>Password lama<br><input name="old_password" type="password" required autocomplete="current-password"></label><br>
+        <form class="form-stack">
+            <label class="field"><span class="field-label">Password lama</span>
+                <input name="old_password" type="password" required autocomplete="current-password"></label>
             ${passwordFieldsHtml('Password baru')}
             ${FORM_BUTTONS}
         </form>
@@ -270,6 +296,6 @@ export function showChangePasswordPopup(){
 
     bindPopupForm(box,
         (f) => ['change_password', { old_password: f.old_password.value, new_password: f.password.value }],
-        () => alert('Password berhasil diganti')
+        () => toast('Password berhasil diganti', 'success')
     );
 }

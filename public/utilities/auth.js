@@ -101,26 +101,14 @@ function askRelogin(){
 // Tampilan
 // =========================================================
 
-const LOGIN_STYLE = `
-    <style>
-        .login-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #f2f2f0; }
-        .login-form { background: #fff; padding: 24px; width: 300px; max-width: 100%; box-sizing: border-box; border: 1px solid #ddd; }
-        .login-form h2 { margin: 0 0 12px; }
-        .login-form label { display: block; margin-bottom: 10px; }
-        .login-form input { display: block; width: 100%; box-sizing: border-box; padding: 6px; margin-top: 4px; }
-        .login-message { margin: 0 0 12px; color: #52514e; }
-        .login-error { min-height: 1.2em; margin: 0 0 10px; color: #c62828; }
-        .login-actions { display: flex; gap: 8px; }
-        .relogin-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: flex;
-                           align-items: center; justify-content: center; z-index: 2000; }
-    </style>
-`;
+// Tampilan layar & popup login diatur di style.css (.login-screen, .login-form, .relogin-overlay).
 
 // Isinya teks tetap dari kode (bukan data user), jadi tidak perlu escapeHtml.
 function loginFormHtml(message = '', cancelable = false){
     return `
         <form class="login-form">
-            <h2>WMS RMPM</h2>
+            <h2>WMS <b>RMPM</b></h2>
+            <p class="login-sub">Warehouse Raw Material &amp; Packaging Material</p>
             ${message ? `<p class="login-message">${message}</p>` : ''}
             <label>Username
                 <input name="username" autocomplete="username" required>
@@ -130,8 +118,8 @@ function loginFormHtml(message = '', cancelable = false){
             </label>
             <p class="login-error"></p>
             <div class="login-actions">
-                <button type="submit">Login</button>
-                ${cancelable ? '<button type="button" class="login-cancel">Batal</button>' : ''}
+                <button type="submit" class="btn-primary" data-icon="login">Login</button>
+                ${cancelable ? '<button type="button" class="login-cancel" data-icon="x">Batal</button>' : ''}
             </div>
         </form>
     `;
@@ -163,7 +151,7 @@ function bindLoginForm(form, onSuccess){
 // Layar login penuh, saat aplikasi dibuka dan belum ada sesi.
 // Mengembalikan Promise yang selesai (berisi user) setelah login berhasil.
 export function showLoginScreen(container){
-    container.innerHTML = LOGIN_STYLE + `<div class="login-screen">${loginFormHtml()}</div>`;
+    container.innerHTML = `<div class="login-screen">${loginFormHtml()}</div>`;
 
     const form = container.querySelector('.login-form');
     form.elements.username.focus();
@@ -185,7 +173,7 @@ export function showLoginScreen(container){
 function showReloginPopup(){
     const overlay = document.createElement('div');
     overlay.className = 'relogin-overlay';
-    overlay.innerHTML = LOGIN_STYLE + loginFormHtml(
+    overlay.innerHTML = loginFormHtml(
         'Sesi login habis. Login lagi untuk melanjutkan, isi halaman tidak hilang.',
         true
     );

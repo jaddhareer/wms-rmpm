@@ -56,73 +56,57 @@ export function dashboard(){
     }
 
     setContent(`
-        <style>
-            .dash { --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781; --surface: #fcfcfb; }
-            .dash h3 { margin: 20px 0 8px; }
-            .dash-cards { display: flex; flex-wrap: wrap; gap: 12px; }
-            .dash-card { flex: 1 1 200px; max-width: 280px; border: 1px solid rgba(11,11,11,.12); border-radius: 8px; padding: 12px 14px; background: var(--surface); }
-            .dash-card-label { color: var(--ink-2); font-size: 14px; }
-            .dash-card-value { font-size: 28px; font-weight: 600; color: var(--ink); margin: 2px 0; }
-            .dash-card-cap { font-size: 14px; font-weight: 400; color: var(--ink-2); }
-            .dash-meter { height: 8px; border-radius: 4px; overflow: hidden; margin: 6px 0; }
-            .dash-meter > div { height: 100%; border-radius: 4px; }
-            .dash-card-foot { display: flex; justify-content: space-between; font-size: 13px; color: var(--ink-2); }
-            .dash-status::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; background: var(--dot); }
-            .dash-racks { font-size: 12px; color: var(--muted); margin-top: 4px; }
-            .dash-note { font-size: 13px; color: var(--ink-2); }
-            .dash-filters { margin-bottom: 8px; }
-            .dash-chart { margin: 0; max-width: 920px; transition: opacity .15s; }
-            .dash-chart.loading { opacity: .5; }
-            .dash-legend { display: flex; gap: 16px; font-size: 13px; color: var(--ink-2); margin-bottom: 4px; }
-            .dash-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
-            .dash-canvas { position: relative; height: 280px; }
-        </style>
+        <div class="page-header"><h2>Dashboard</h2></div>
 
-        <div class="dash">
-            <h2>Dashboard</h2>
+        <h3 class="section-title">Okupansi saat ini</h3>
+        <div class="dash-cards" id="occ-cards">Memuat...</div>
+        <p class="dash-note" id="occ-note"></p>
 
-            <h3>Okupansi saat ini</h3>
-            <div class="dash-cards" id="occ-cards">Memuat...</div>
-            <p class="dash-note" id="occ-note"></p>
-
-            <h3>Pergerakan pallet</h3>
-            <div class="dash-filters">
-                <label>Periode
-                    <select id="period">
-                        ${PERIODS.map(([value, label]) =>
-                            `<option value="${value}" ${value === period ? 'selected' : ''}>${label}</option>`).join('')}
-                    </select>
-                </label>
+        <section class="card">
+            <div class="card-head">
+                <h3 class="card-title">Pergerakan pallet</h3>
+                <div class="dash-filters">
+                    <label>Periode
+                        <select id="period">
+                            ${PERIODS.map(([value, label]) =>
+                                `<option value="${value}" ${value === period ? 'selected' : ''}>${label}</option>`).join('')}
+                        </select>
+                    </label>
+                </div>
             </div>
             <figure class="dash-chart" id="mv-figure">
                 <div class="dash-legend" id="mv-legend"></div>
                 <div class="dash-canvas"><canvas id="mv-canvas" aria-label="Jumlah pallet inbound dan outbound per periode" role="img"></canvas></div>
                 <details>
                     <summary class="dash-note">Lihat sebagai tabel</summary>
-                    <table border="1" id="mv-table"></table>
+                    <div class="table-wrap"><table id="mv-table"></table></div>
                 </details>
             </figure>
+        </section>
 
-            <h3>Deviasi okupansi harian</h3>
-            <div class="dash-filters">
-                <label>Rentang
-                    <select id="range">
-                        ${RANGES.map(([value, label]) =>
-                            `<option value="${value}" ${value === range ? 'selected' : ''}>${label}</option>`).join('')}
-                    </select>
-                </label>
-                <span class="dash-note">Persentase posisi pallet terisi di akhir tiap hari, dihitung dari riwayat transaksi.</span>
+        <section class="card">
+            <div class="card-head">
+                <h3 class="card-title">Deviasi okupansi harian</h3>
+                <div class="dash-filters">
+                    <label>Rentang
+                        <select id="range">
+                            ${RANGES.map(([value, label]) =>
+                                `<option value="${value}" ${value === range ? 'selected' : ''}>${label}</option>`).join('')}
+                        </select>
+                    </label>
+                </div>
             </div>
+            <p class="dash-note">Persentase posisi pallet terisi di akhir tiap hari, dihitung dari riwayat transaksi.</p>
             <figure class="dash-chart" id="tr-figure">
                 <div class="dash-legend" id="tr-legend"></div>
                 <div class="dash-canvas"><canvas id="tr-canvas" aria-label="Persentase okupansi harian per lokasi" role="img"></canvas></div>
                 <p class="dash-note" id="tr-note"></p>
                 <details>
                     <summary class="dash-note">Lihat sebagai tabel</summary>
-                    <table border="1" id="tr-table"></table>
+                    <div class="table-wrap"><table id="tr-table"></table></div>
                 </details>
             </figure>
-        </div>
+        </section>
     `);
 
     q('#period').addEventListener('change', (e) => {
@@ -231,7 +215,7 @@ function renderMovements(mv){
         maxBarThickness: 24,                               // batang tipis, sisa ruang dibiarkan kosong
         borderRadius: { topLeft: 4, topRight: 4 },          // ujung atas membulat, dasar persegi
         borderSkipped: 'bottom',
-        borderColor: '#fcfcfb',                            // garis warna latar = celah antar batang
+        borderColor: '#ffffff',                            // garis warna latar = celah antar batang
         borderWidth: { left: 1, right: 1 },
     }));
 
@@ -281,9 +265,9 @@ function renderMovements(mv){
 
     // Tabel: versi aksesibel dari grafik, semua angka bisa dibaca tanpa hover.
     q('#mv-table').innerHTML = `
-        <thead><tr><th>Periode</th>${SERIES.map(s => `<th>${s.label}</th>`).join('')}</tr></thead>
+        <thead><tr><th>Periode</th>${SERIES.map(s => `<th class="num">${s.label}</th>`).join('')}</tr></thead>
         <tbody>${mv.labels.map((label, i) => `
-            <tr><td>${escapeHtml(label)}</td>${SERIES.map(s => `<td style="text-align:right">${formatNumber(mv[s.key][i])}</td>`).join('')}</tr>
+            <tr><td>${escapeHtml(label)}</td>${SERIES.map(s => `<td class="num">${formatNumber(mv[s.key][i])}</td>`).join('')}</tr>
         `).join('')}</tbody>`;
 }
 
@@ -306,7 +290,7 @@ function renderTrend(trend){
         borderWidth: 2,
         pointRadius: fewPoints ? 4 : 0,      // titik minimal 8px
         pointHoverRadius: 5,
-        pointBorderColor: '#fcfcfb',     // cincin warna latar di sekeliling titik
+        pointBorderColor: '#ffffff',     // cincin warna latar di sekeliling titik
         pointBorderWidth: 2,
         tension: 0,                      // garis lurus antar hari, tidak dihaluskan
     }));
@@ -371,9 +355,9 @@ function renderTrend(trend){
     // Tabel: tanggal terbaru di atas.
     const rows = trend.labels.map((label, i) => ({ label, i })).reverse();
     q('#tr-table').innerHTML = `
-        <thead><tr><th>Tanggal</th>${trend.series.map(s => `<th>${escapeHtml(s.label)}</th>`).join('')}</tr></thead>
+        <thead><tr><th>Tanggal</th>${trend.series.map(s => `<th class="num">${escapeHtml(s.label)}</th>`).join('')}</tr></thead>
         <tbody>${rows.map(({ label, i }) => `
             <tr><td>${escapeHtml(label)}</td>${trend.series.map(s =>
-                `<td style="text-align:right">${formatNumber(s.percent[i])}% (${formatNumber(s.pallets[i])})</td>`).join('')}</tr>
+                `<td class="num">${formatNumber(s.percent[i])}% (${formatNumber(s.pallets[i])})</td>`).join('')}</tr>
         `).join('')}</tbody>`;
 }

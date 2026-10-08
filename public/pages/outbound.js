@@ -1,6 +1,7 @@
-import { setContent, q, escapeHtml } from "../utilities/tools.js";
+import { setContent, q, escapeHtml, emptyRowHtml } from "../utilities/tools.js";
 import { apiFetch } from "../utilities/auth.js";
-import { openPopup, closePopup } from "../utilities/popups.js";
+import { toast } from "../utilities/toast.js";
+import { openPopup, closePopup, onRowPick } from "../utilities/popups.js";
 import { materialAutocomplete, ITEM_CODE_PATTERN } from "../utilities/materialAutocomplete.js";
 
 // Pallet yang sudah di-Add tapi belum di-submit.
@@ -13,42 +14,88 @@ export function outbound(){
     selectedPallet = null;
 
     setContent(`
-        <h2>Outbound</h2>
-        <div>
-            <label for="destination">Outbound To</label>
-            <select id="destination">
-                <option value="">-- pilih --</option>
-                <option value="PRODUKSI">Produksi</option>
-                <option value="QUALITY">Quality</option>
-            </select><hr>
+        <div class="page-header"><h2>Outbound</h2></div>
 
-            <label for="item-code">Item Code</label>     <input type="text" id="item-code" size="30">
-            <button type="button" id="btn-choose">Pilih Pallet</button><br>
-            <label for="item-name">Item Name</label>     <input type="text" id="item-name" disabled><br>
-            <label for="exp-date">Expired Date</label>   <input type="text" id="exp-date" disabled><br>
-            <label for="pallet-number">Pallet</label>    <input type="text" id="pallet-number" disabled><br>
-            <label for="bin">Bin</label>                 <input type="text" id="bin" disabled><br>
-            <label for="qty-available">Stok Pallet</label> <input type="text" id="qty-available" disabled><hr>
+        <section class="card">
+            <div class="form-grid">
+                <div class="field">
+                    <label for="destination">Outbound To</label>
+                    <select id="destination">
+                        <option value="">-- pilih --</option>
+                        <option value="PRODUKSI">Produksi</option>
+                        <option value="QUALITY">Quality</option>
+                    </select>
+                </div>
+                <hr>
+                <div class="field wide">
+                    <label for="item-code">Item Code</label>
+                    <div class="input-group">
+                        <input type="text" id="item-code">
+                        <button type="button" id="btn-choose" data-icon="list">Pilih Pallet</button>
+                    </div>
+                </div>
+                <div class="field wide">
+                    <label for="item-name">Item Name</label>
+                    <input type="text" id="item-name" disabled>
+                </div>
+                <div class="field">
+                    <label for="exp-date">Expired Date</label>
+                    <input type="text" id="exp-date" disabled>
+                </div>
+                <div class="field">
+                    <label for="pallet-number">Pallet</label>
+                    <input type="text" id="pallet-number" disabled>
+                </div>
+                <div class="field">
+                    <label for="bin">Bin</label>
+                    <input type="text" id="bin" disabled>
+                </div>
+                <div class="field">
+                    <label for="qty-available">Stok Pallet</label>
+                    <input type="text" id="qty-available" disabled>
+                </div>
+                <hr>
+                <div class="field">
+                    <label for="qty-fisik">Quantity</label>
+                    <div class="input-group">
+                        <input type="number" id="qty-fisik" min="0" step="any">
+                        <input type="text" id="uom-fisik" class="unit" disabled aria-label="UoM">
+                    </div>
+                </div>
+                <div class="field">
+                    <label for="qty-sap">Qty SAP</label>
+                    <div class="input-group">
+                        <input type="text" id="qty-sap" disabled>
+                        <input type="text" id="uom-sap" class="unit" disabled aria-label="UoM SAP">
+                    </div>
+                </div>
+                <div class="field wide">
+                    <label for="remark">Remark</label>
+                    <input type="text" id="remark">
+                </div>
+            </div>
+            <div class="form-actions">
+                <button type="button" id="btn-add" class="btn-soft" data-icon="plus">Add</button>
+            </div>
+        </section>
 
-            <label for="qty-fisik">Quantity</label>      <input type="number" id="qty-fisik" min="0" step="any">
-                                                         <input type="text" id="uom-fisik" disabled size="6"><br>
-            <label for="qty-sap">Qty SAP</label>         <input type="text" id="qty-sap" disabled>
-                                                         <input type="text" id="uom-sap" disabled size="6"><br>
-            <label for="remark">Remark</label>           <input type="text" id="remark"><hr>
-            <button type="button" id="btn-add">Add</button>
-        </div>
-
-        <table border="1">
-            <thead>
-                <tr>
-                    <th>Item Code</th><th>Description</th><th>Exp Date</th><th>Pallet</th><th>Bin</th><th>Tujuan</th>
-                    <th>Qty</th><th>UoM</th><th>Qty SAP</th><th>UoM SAP</th><th>Remark</th><th></th>
-                </tr>
-            </thead>
-            <tbody id="preview-body"></tbody>
-        </table>
-
-        <button type="button" id="btn-submit">Submit</button>
+        <section class="card">
+            <h3 class="card-title">Daftar Pallet <span class="badge" id="preview-count">0</span></h3>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Item Code</th><th>Description</th><th>Exp Date</th><th class="num">Pallet</th><th>Bin</th><th>Tujuan</th>
+                            <th class="num">Qty</th><th>UoM</th><th class="num">Qty SAP</th><th>UoM SAP</th><th>Remark</th><th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="preview-body"></tbody>
+                </table>
+            </div>
+            <div class="form-actions">
+                <button type="button" id="btn-submit" class="btn-primary" data-icon="save">Submit</button>
+            </div>
+        </section>
     `);
 
     q('#item-code').addEventListener('input', handleItemCodeInput);
@@ -90,7 +137,7 @@ async function loadPallets(itemCode){
 
     // Tombol "Pilih Pallet" bisa diklik saat input masih berisi deskripsi.
     if (!ITEM_CODE_PATTERN.test(itemCode)) {
-        alert('Item code belum valid: scan item code atau pilih dari saran');
+        toast('Item code belum valid: scan item code atau pilih dari saran', 'warning');
         return;
     }
 
@@ -101,7 +148,7 @@ async function loadPallets(itemCode){
     if (q('#item-code')?.value.trim() !== itemCode) return;
 
     if (!res.ok) {
-        alert(data.error);
+        toast(data.error, 'error');
         return;
     }
 
@@ -109,7 +156,7 @@ async function loadPallets(itemCode){
     const pallets = data.filter(pallet => !state.some(row => samePallet(row, pallet)));
 
     if (pallets.length === 0) {
-        alert(`Tidak ada stok tersisa untuk item ${itemCode}`);
+        toast(`Tidak ada stok tersisa untuk item ${itemCode}`, 'warning');
     } else if (pallets.length === 1) {
         selectPallet(pallets[0]);
     } else {
@@ -120,38 +167,36 @@ async function loadPallets(itemCode){
 function showPalletPopup(pallets){
     const box = openPopup(`
         <h3>Pilih pallet: ${escapeHtml(pallets[0].description)}</h3>
-        <p>Urut dari expired paling dekat (FEFO).</p>
-        <table border="1">
-            <thead>
-                <tr><th>Exp Date</th><th>Pallet</th><th>Bin</th><th>Qty</th><th></th></tr>
-            </thead>
-            <tbody>
-                ${pallets.map((pallet, index) => `
-                    <tr>
-                        <td>${escapeHtml(pallet.exp_date)}</td>
-                        <td>${escapeHtml(pallet.pallet_number)}</td>
-                        <td>${escapeHtml(pallet.bin)}</td>
-                        <td>${escapeHtml(pallet.qty_actual)} ${escapeHtml(pallet.uom_fisik)}</td>
-                        <td><button type="button" class="btn-pick" data-index="${index}">Pilih</button></td>
-                    </tr>
-                `).join('')}
-            </tbody>
-        </table>
-        <button type="button" id="btn-close-popup">Batal</button>
+        <p class="hint">Urut dari expired paling dekat (FEFO). Klik baris untuk memilih.</p>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr><th>Exp Date</th><th class="num">Pallet</th><th>Bin</th><th class="num">Qty</th><th></th></tr>
+                </thead>
+                <tbody>
+                    ${pallets.map((pallet, index) => `
+                        <tr class="pick-row" data-index="${index}" tabindex="0">
+                            <td>${escapeHtml(pallet.exp_date)}</td>
+                            <td class="num">${escapeHtml(pallet.pallet_number)}</td>
+                            <td>${escapeHtml(pallet.bin)}</td>
+                            <td class="num">${escapeHtml(pallet.qty_actual)} ${escapeHtml(pallet.uom_fisik)}</td>
+                            <td class="pick-arrow" data-icon="chevron-right"></td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+        <div class="form-actions">
+            <button type="button" id="btn-close-popup" data-icon="x">Batal</button>
+        </div>
     `);
 
-    // Listener ini "mengingat" array pallets milik popup ini (closure),
+    box.querySelector('#btn-close-popup').addEventListener('click', closePopup);
+
+    // Callback ini "mengingat" array pallets milik popup ini (closure),
     // jadi data-index cukup menunjuk posisinya di array itu.
-    box.addEventListener('click', (e) => {
-        if (e.target.id === 'btn-close-popup') {
-            closePopup();
-            return;
-        }
-
-        const button = e.target.closest('.btn-pick');
-        if (!button) return;
-
-        selectPallet(pallets[Number(button.dataset.index)]);
+    onRowPick(box, (index) => {
+        selectPallet(pallets[index]);
         closePopup();
     });
 }
@@ -186,25 +231,25 @@ function handleAdd(){
     const qtyFisik = parseFloat(q('#qty-fisik').value);
 
     if (!destination) {
-        alert('Pilih tujuan outbound');
+        toast('Pilih tujuan outbound', 'warning');
         return;
     }
     if (!selectedPallet) {
-        alert('Pilih pallet dulu');
+        toast('Pilih pallet dulu', 'warning');
         return;
     }
     if (!(qtyFisik > 0)) {
-        alert('Quantity harus lebih dari 0');
+        toast('Quantity harus lebih dari 0', 'warning');
         return;
     }
 
     const available = parseFloat(selectedPallet.qty_actual);
     if (qtyFisik > available) {
-        alert(`Quantity melebihi stok pallet (${available})`);
+        toast(`Quantity melebihi stok pallet (${available})`, 'warning');
         return;
     }
     if (state.some(row => samePallet(row, selectedPallet))) {
-        alert('Pallet ini sudah ada di daftar');
+        toast('Pallet ini sudah ada di daftar', 'warning');
         return;
     }
 
@@ -230,20 +275,27 @@ function handleAdd(){
 }
 
 function renderPreview(){
+    q('#preview-count').textContent = state.length;
+
+    if (state.length === 0) {
+        q('#preview-body').innerHTML = emptyRowHtml(12, 'Belum ada pallet. Pilih pallet di atas lalu klik Add.');
+        return;
+    }
+
     q('#preview-body').innerHTML = state.map((row, index) => `
         <tr>
             <td>${escapeHtml(row.item_code)}</td>
-            <td>${escapeHtml(row.description)}</td>
+            <td class="wrap">${escapeHtml(row.description)}</td>
             <td>${escapeHtml(row.exp_date)}</td>
-            <td>${escapeHtml(row.pallet_number)}</td>
+            <td class="num">${escapeHtml(row.pallet_number)}</td>
             <td>${escapeHtml(row.bin)}</td>
             <td>${escapeHtml(row.destination)}</td>
-            <td>${escapeHtml(row.qty_actual)}</td>
+            <td class="num">${escapeHtml(row.qty_actual)}</td>
             <td>${escapeHtml(row.uom_fisik)}</td>
-            <td>${escapeHtml(row.qty_sap)}</td>
+            <td class="num">${escapeHtml(row.qty_sap)}</td>
             <td>${escapeHtml(row.uom_sap)}</td>
-            <td>${escapeHtml(row.remark)}</td>
-            <td><button type="button" class="btn-delete" data-index="${index}">Hapus</button></td>
+            <td class="wrap">${escapeHtml(row.remark)}</td>
+            <td><button type="button" class="btn-delete btn-sm btn-danger" data-index="${index}" data-icon="trash">Hapus</button></td>
         </tr>
     `).join('');
 }
@@ -258,7 +310,7 @@ function handleDeleteRow(e){
 
 async function handleSubmit(){
     if (state.length === 0) {
-        alert('Belum ada pallet yang di-Add');
+        toast('Belum ada pallet yang di-Add', 'warning');
         return;
     }
 
@@ -274,14 +326,14 @@ async function handleSubmit(){
         const data = await res.json();
 
         if (data.success) {
-            alert('Berhasil disimpan: ' + data.transaction_code);
+            toast('Berhasil disimpan: ' + data.transaction_code, 'success');
             state = [];
             renderPreview();
         } else {
-            alert('Gagal: ' + data.error);
+            toast('Gagal: ' + data.error, 'error');
         }
     } catch (err) {
-        alert('Tidak bisa menghubungi server: ' + err.message);
+        toast('Tidak bisa menghubungi server: ' + err.message, 'error');
     } finally {
         button.disabled = false;
     }

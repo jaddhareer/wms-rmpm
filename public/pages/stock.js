@@ -1,5 +1,6 @@
 import { setContent, q, escapeHtml, debounce, formatNumber, binDatalistHtml, downloadFile } from "../utilities/tools.js";
 import { apiFetch } from "../utilities/auth.js";
+import { toast } from "../utilities/toast.js";
 import { openPopup, closePopup } from "../utilities/popups.js";
 import { paginationHtml } from "../utilities/pagination.js";
 
@@ -20,35 +21,59 @@ const state = {
 
 let requestId = 0;
 
+// Panel filter di HP bisa dibuka-tutup (sama seperti transactions.js).
+let filtersOpen = false;
+
 export function stock(){
     const f = state.filters;
 
     setContent(`
-        <h2>Stock Overview</h2>
-
-        <div id="stock-filters">
-            <input type="text" data-filter="description" placeholder="Description / item code (pisah koma)" value="${escapeHtml(f.description)}" size="32">
-            <label>Exp dari <input type="date" data-filter="exp_from" value="${escapeHtml(f.exp_from)}"></label>
-            <label>sampai <input type="date" data-filter="exp_to" value="${escapeHtml(f.exp_to)}"></label>
-            <input type="text" data-filter="bin" list="bin-options" placeholder="Bin" value="${escapeHtml(f.bin)}">
-            ${binDatalistHtml()}
-            <button type="button" id="btn-reset">Reset Filter</button>
-            <button type="button" id="btn-export">Export Excel</button>
+        <div class="page-header">
+            <h2>Stock Overview</h2>
+            <button type="button" id="btn-export" class="btn-success" data-icon="download">Export Excel</button>
         </div>
 
-        <p id="stock-info">Memuat...</p>
+        <section class="card filter-bar${filtersOpen ? ' open' : ''}" id="stock-filters">
+            <button type="button" class="filter-toggle" data-icon="filter" aria-expanded="${filtersOpen}" aria-controls="stock-filter-fields">
+                Filter <span class="badge" id="filter-count"></span>
+            </button>
+            <div class="filter-fields" id="stock-filter-fields">
+                <div class="field grow">
+                    <label for="f-description">Description / Item Code</label>
+                    <input type="text" id="f-description" data-filter="description" placeholder="pisah dengan koma" value="${escapeHtml(f.description)}">
+                </div>
+                <div class="field">
+                    <label for="f-exp-from">Exp dari</label>
+                    <input type="date" id="f-exp-from" data-filter="exp_from" value="${escapeHtml(f.exp_from)}">
+                </div>
+                <div class="field">
+                    <label for="f-exp-to">Exp sampai</label>
+                    <input type="date" id="f-exp-to" data-filter="exp_to" value="${escapeHtml(f.exp_to)}">
+                </div>
+                <div class="field">
+                    <label for="f-bin">Bin</label>
+                    <input type="text" id="f-bin" data-filter="bin" list="bin-options" value="${escapeHtml(f.bin)}">
+                    ${binDatalistHtml()}
+                </div>
+                <button type="button" id="btn-reset" data-icon="reset" title="Kosongkan semua filter">Reset</button>
+            </div>
+        </section>
 
-        <table border="1">
-            <thead>
-                <tr>
-                    <th>Item Code</th><th>Description</th><th>Exp Date</th><th>Pallet</th><th>Bin</th>
-                    <th>Qty</th><th>UoM</th><th>Qty SAP</th><th>UoM SAP</th><th>Remark</th>
-                </tr>
-            </thead>
-            <tbody id="stock-body"></tbody>
-        </table>
-
-        <div id="stock-pagination" style="margin-top:8px;"></div>
+        <section class="card">
+            <p class="table-info" id="stock-info">Memuat...</p>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Item Code</th><th>Description</th><th>Exp Date</th><th class="num">Pallet</th><th>Bin</th>
+                            <th class="num">Qty</th><th>UoM</th><th class="num">Qty SAP</th><th>UoM SAP</th><th>Remark</th>
+                        </tr>
+                    </thead>
+                    <tbody id="stock-body"></tbody>
+                </table>
+            </div>
+            <div class="pagination" id="stock-pagination"></div>
+        </section>
     `);
 
     const debouncedLoad = debounce(loadData, 300);
@@ -58,9 +83,12 @@ export function stock(){
         if (!e.target.dataset.filter) return;
 
         readFiltersFromForm();
+        renderFilterCount();
         state.page = 1;
         debouncedLoad();
     });
+
+    q('.filter-toggle').addEventListener('click', toggleFilters);
 
     q('#btn-reset').addEventListener('click', () => {
         state.filters = emptyFilters();
@@ -85,7 +113,20 @@ export function stock(){
         showLotDetail(button.dataset.item, button.dataset.exp);
     });
 
+    renderFilterCount();
     loadData();
+}
+
+function toggleFilters(){
+    filtersOpen = !filtersOpen;
+    q('#stock-filters').classList.toggle('open', filtersOpen);
+    q('.filter-toggle').setAttribute('aria-expanded', String(filtersOpen));
+}
+
+// Jumlah filter yang terisi, tampil di tombol "Filter" (HP).
+function renderFilterCount(){
+    const count = Object.values(state.filters).filter(value => value.length > 0).length;
+    q('#filter-count').textContent = count || '';
 }
 
 function readFiltersFromForm(){
@@ -144,20 +185,20 @@ function renderRows(rows){
     q('#stock-body').innerHTML = rows.map(row => `
         <tr>
             <td>
-                <button type="button" class="lot-link"
+                <button type="button" class="lot-link link-btn"
                         data-item="${escapeHtml(row.item_code)}" data-exp="${escapeHtml(row.exp_date)}">
                     ${escapeHtml(row.item_code)}
                 </button>
             </td>
-            <td>${escapeHtml(row.description)}</td>
+            <td class="wrap">${escapeHtml(row.description)}</td>
             <td>${escapeHtml(row.exp_date)}</td>
-            <td style="text-align:right">${escapeHtml(row.pallet_count)}</td>
+            <td class="num">${escapeHtml(row.pallet_count)}</td>
             <td title="${escapeHtml(row.bins)}">${escapeHtml(binSummary(row.bins))}</td>
-            <td style="text-align:right">${formatNumber(row.qty_actual)}</td>
+            <td class="num">${formatNumber(row.qty_actual)}</td>
             <td>${escapeHtml(row.uom_fisik)}</td>
-            <td style="text-align:right">${formatNumber(row.qty_sap)}</td>
+            <td class="num">${formatNumber(row.qty_sap)}</td>
             <td>${escapeHtml(row.uom_sap)}</td>
-            <td>${escapeHtml(row.remarks)}</td>
+            <td class="wrap">${escapeHtml(row.remarks)}</td>
         </tr>
     `).join('');
 }
@@ -185,7 +226,7 @@ async function showLotDetail(itemCode, expDate){
         const result = await res.json();
 
         if (!result.success || result.data.length === 0) {
-            alert('Detail stok tidak ditemukan');
+            toast('Detail stok tidak ditemukan', 'error');
             return;
         }
 
@@ -196,42 +237,46 @@ async function showLotDetail(itemCode, expDate){
 
         const box = openPopup(`
             <h3>${escapeHtml(head.item_code)} — ${escapeHtml(head.description)}</h3>
-            <p>
-                Exp Date: <b>${escapeHtml(head.exp_date)}</b><br>
-                ${rows.length} pallet, total ${formatNumber(totalQty)} ${escapeHtml(head.uom_fisik)}
-                (${formatNumber(totalSap)} ${escapeHtml(head.uom_sap)})
-            </p>
-            <table border="1">
-                <thead>
-                    <tr>
-                        <th>Pallet</th><th>Bin</th><th>Qty</th><th>UoM</th><th>Faktor</th>
-                        <th>Qty SAP</th><th>UoM SAP</th><th>Remark</th><th>Last Update</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${rows.map(r => `
+            <dl class="meta-list">
+                <dt>Exp Date</dt> <dd>${escapeHtml(head.exp_date)}</dd>
+                <dt>Jumlah</dt>   <dd>${rows.length} pallet</dd>
+                <dt>Total</dt>    <dd>${formatNumber(totalQty)} ${escapeHtml(head.uom_fisik)}
+                                      (${formatNumber(totalSap)} ${escapeHtml(head.uom_sap)})</dd>
+            </dl>
+            <div class="table-wrap">
+                <table>
+                    <thead>
                         <tr>
-                            <td style="text-align:right">${escapeHtml(r.pallet_number)}</td>
-                            <td>${escapeHtml(r.bin)}</td>
-                            <td style="text-align:right">${formatNumber(r.qty_actual)}</td>
-                            <td>${escapeHtml(r.uom_fisik)}</td>
-                            <td style="text-align:right">${formatNumber(r.conversion_factor)}</td>
-                            <td style="text-align:right">${formatNumber(r.qty_sap)}</td>
-                            <td>${escapeHtml(r.uom_sap)}</td>
-                            <td>${escapeHtml(r.remark)}</td>
-                            <td>${escapeHtml(r.updated_at)}</td>
+                            <th class="num">Pallet</th><th>Bin</th><th class="num">Qty</th><th>UoM</th><th class="num">Faktor</th>
+                            <th class="num">Qty SAP</th><th>UoM SAP</th><th>Remark</th><th>Last Update</th>
                         </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-            <br>
-            <button type="button" id="btn-close-popup">Tutup</button>
+                    </thead>
+                    <tbody>
+                        ${rows.map(r => `
+                            <tr>
+                                <td class="num">${escapeHtml(r.pallet_number)}</td>
+                                <td>${escapeHtml(r.bin)}</td>
+                                <td class="num">${formatNumber(r.qty_actual)}</td>
+                                <td>${escapeHtml(r.uom_fisik)}</td>
+                                <td class="num">${formatNumber(r.conversion_factor)}</td>
+                                <td class="num">${formatNumber(r.qty_sap)}</td>
+                                <td>${escapeHtml(r.uom_sap)}</td>
+                                <td class="wrap">${escapeHtml(r.remark)}</td>
+                                <td>${escapeHtml(r.updated_at)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+            <div class="form-actions">
+                <button type="button" id="btn-close-popup" data-icon="x">Tutup</button>
+            </div>
         `);
 
         box.querySelector('#btn-close-popup').addEventListener('click', closePopup);
 
     } catch (err) {
-        alert('Tidak bisa menghubungi server: ' + err.message);
+        toast('Tidak bisa menghubungi server: ' + err.message, 'error');
     }
 }
 
@@ -244,7 +289,7 @@ async function handleExport(){
         // Filter yang sama dengan tabel, tapi semua halaman, per pallet.
         await downloadFile(`${API}?${buildQuery(false)}&export=1`, 'stock-rmpm.xlsx');
     } catch (err) {
-        alert('Export gagal: ' + err.message);
+        toast('Export gagal: ' + err.message, 'error');
     } finally {
         button.disabled = false;
         button.textContent = 'Export Excel';

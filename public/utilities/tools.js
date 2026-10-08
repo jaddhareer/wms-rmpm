@@ -25,6 +25,12 @@ export function escapeHtml(value){
         .replaceAll('"', '&quot;')
         .replaceAll("'", '&#039;');
 }
+// Baris pengganti untuk tabel yang belum ada isinya (mis. daftar pallet sebelum Add),
+// supaya operator tahu harus berbuat apa. colspan = jumlah kolom tabel.
+export function emptyRowHtml(colspan, text){
+    return `<tr class="empty-row"><td colspan="${colspan}">${escapeHtml(text)}</td></tr>`;
+}
+
 // Debounce: tunda pemanggilan fn sampai tidak ada panggilan baru selama `delay` ms.
 // Dipakai untuk filter yang jalan saat diketik: mengetik "SODIUM" cukup 1 request, bukan 6.
 export function debounce(fn, delay = 300){

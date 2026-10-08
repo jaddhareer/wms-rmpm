@@ -29,12 +29,12 @@ export function paginationHtml(page, totalPages){
 
     const buttons = pageNumbers(page, totalPages).map(n => {
         if (n === '…') return `<span class="page-gap">…</span>`;
-        if (n === page) return `<button type="button" class="page-btn active" disabled style="font-weight:bold">${n}</button>`;
+        if (n === page) return `<button type="button" class="page-btn active" disabled aria-current="page">${n}</button>`;
         return `<button type="button" class="page-btn" data-page="${n}">${n}</button>`;
     });
 
-    const prev = `<button type="button" class="page-btn" data-page="${page - 1}" ${page <= 1 ? 'disabled' : ''}>‹</button>`;
-    const next = `<button type="button" class="page-btn" data-page="${page + 1}" ${page >= totalPages ? 'disabled' : ''}>›</button>`;
+    const prev = `<button type="button" class="page-btn" data-page="${page - 1}" data-icon="chevron-left" aria-label="Halaman sebelumnya" ${page <= 1 ? 'disabled' : ''}></button>`;
+    const next = `<button type="button" class="page-btn" data-page="${page + 1}" data-icon="chevron-right" aria-label="Halaman berikutnya" ${page >= totalPages ? 'disabled' : ''}></button>`;
 
     return [prev, ...buttons, next].join(' ');
 }

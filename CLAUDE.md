@@ -46,7 +46,7 @@ controller/  HTTP masuk/keluar + orkestrasi beberapa model + DB transaction. Mem
              kecuali TransactionPrint.php yang membalas HTML lewat view/
 view/        template HTML PHP (hanya untuk halaman cetak), tanpa query
 library/     alat bantu yang dipakai controller (XlsxWriter.php = export .xlsx tanpa Composer)
-public/      SPA: main.js, pages/*.js (satu file per menu), utilities/*.js, vendor/ (library JS lokal)
+public/      SPA: main.js, style.css, pages/*.js (satu file per menu), utilities/*.js, vendor/ (library JS lokal)
 index.html   kerangka SPA
 ```
 
@@ -89,6 +89,18 @@ index.html   kerangka SPA
 - Item code = 9 digit angka → pakai `ITEM_CODE_PATTERN` dari `utilities/materialAutocomplete.js` (bukan `length === 9`). Input item code di Inbound/Outbound/Bin to Bin memakai `materialAutocomplete()` (ketik deskripsi → pilih → input diganti item code). Outbound & Bin to Bin hanya menyarankan material yang ada stoknya.
 - Bin to Bin: source bin otomatis dicari saat panjangnya 9 karakter (scan QR rak). Ini disengaja, pallet di floor dicari lewat scan item code.
 - Library JS disimpan lokal di `public/vendor/` (Chart.js, signature_pad). Jangan pakai CDN, gudang tidak selalu ada internet.
+
+## Styling
+
+- CSS biasa, satu file `public/style.css` (dimuat di `index.html`). Halaman cetak punya CSS sendiri di `view/transaction_print.php`. Jangan menulis `<style>` atau `style="..."` di template JS, kecuali nilai dari data (lebar meter, warna seri grafik).
+- Warna & ukuran lewat variabel di `:root` (`--accent: #e08600`, dst.). Teks di atas tombol oranye memakai `--on-accent` (gelap), bukan putih (kontras putih hanya 2,8:1). Teks/link oranye di atas putih memakai `--accent-strong`.
+- Breakpoint: `< 1024px` menu samping jadi laci (tombol ☰ di `.topbar`), `< 640px` = HP. Layar sentuh (`pointer: coarse`) tinggi kontrol 44px.
+- Pola markup halaman: `.page-header` (judul) → `section.card` → `.form-grid` berisi `.field` (label di atas input; `.wide` = 2 kolom, `.full` = satu baris; `<hr>` = pemisah kelompok) → `.form-actions`. Qty + UoM: `.input-group` + `.unit`. Tabel selalu dibungkus `.table-wrap` (bisa digeser di HP); kolom angka `class="num"`, teks panjang `class="wrap"`; tabel kosong pakai `emptyRowHtml()` (tools.js).
+- Tombol (warna = arti): `.btn-primary` oranye = aksi utama/simpan (Submit, Move, Simpan, Print), `.btn-soft` oranye muda = aksi kedua (Add, Retur), `.btn-success` hijau = Export, `.btn-success-soft` = Aktifkan, `.btn-danger` merah muda = Hapus/Nonaktifkan, tanpa kelas = netral (Batal, Tutup, Reset). `.btn-sm` di baris tabel, `.link-btn` tampil seperti link. Jenis transaksi: `.badge .badge-inbound|outbound|mutasi|retur`.
+- Ikon: `public/icons.css` (SVG digambar sendiri, lokal, tanpa CDN). Pakai atribut `data-icon="nama"` di elemen mana pun, ikon muncul di depan teks dan warnanya ikut warna teks. Tombol ikon saja wajib `aria-label`. Ikon menu ada di kolom ketiga `MENU_GROUPS`. Menambah ikon: salin satu baris `[data-icon="..."]` di icons.css. `::before` pada elemen ber-`data-icon` sudah dipakai ikon, jadi hiasan lain pakai `::after`.
+- Filter di atas tabel: `section.card.filter-bar` → `.filter-toggle` (hanya tampil di HP, panel tertutup dulu + badge jumlah filter aktif) → `.filter-fields` (field `.grow` = melebar, `.fit` = selebar isinya). Rentang tanggal: `.date-range` > `.range-part[data-label]` (tgl + jam) `.range-sep`. Pilihan banyak (mis. Jenis): `.dropdown` + `dropdown()` dari `utilities/dropdown.js`, isinya `.check-item`. Export ada di `.page-header`, bukan di filter.
+- **Jangan pakai `alert()` / `confirm()`.** Pesan: `toast(pesan, 'success'|'error'|'warning'|'info')` dari `utilities/toast.js` (notifikasi kecil di atas, hilang sendiri; `warning` = isian form belum benar, `error` = ditolak server / jaringan). Konfirmasi: `await confirmDialog({ title, message, confirmText, icon, danger })` dari `popups.js` (true/false).
+- Popup pilihan (pilih pallet): baris `<tr class="pick-row" data-index tabindex="0">` + `onRowPick(box, index => ...)` dari `popups.js`. Klik baris / Enter = pilih, tanpa tombol "Pilih".
 
 ## Login & User Management (sudah jadi)
 

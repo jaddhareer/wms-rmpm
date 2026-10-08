@@ -11,6 +11,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <!-- Judul tab = nama file default saat "Save as PDF" -->
     <title><?= e($code) ?></title>
+    <!-- Ikon SVG yang sama dengan aplikasi (data-icon="...") -->
+    <link rel="stylesheet" href="../public/icons.css">
     <style>
         * { box-sizing: border-box; }
         html, body { margin: 0; padding: 0; }
@@ -25,8 +27,9 @@
         /* Toolbar (tidak ikut tercetak) */
         .toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
         .toolbar button {
+            display: inline-flex; align-items: center; gap: 7px;
             min-height: 36px; padding: 6px 16px; font-size: 14px; cursor: pointer;
-            border: 1px solid #1769aa; border-radius: 6px; background: #1769aa; color: #fff;
+            border: 1px solid #e08600; border-radius: 6px; background: #e08600; color: #1c1a17; font-weight: bold;
         }
         .toolbar button:disabled { opacity: .45; cursor: not-allowed; }
         .toolbar .hint { color: #8a5a00; font-size: 12px; }
@@ -62,7 +65,7 @@
             position: relative; width: 100%; height: 100px;
             border: 1px dashed #999; cursor: pointer; background: #fff;
         }
-        .sig-pad-wrap:hover { border-color: #1769aa; }
+        .sig-pad-wrap:hover { border-color: #e08600; }
         .sig-placeholder {
             position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
             color: #999; pointer-events: none; text-align: center; padding: 0 8px;
@@ -93,11 +96,23 @@
         }
         .sig-actions { display: grid; grid-template-columns: 1fr 1fr 1.3fr; gap: 8px; margin-top: 14px; }
         .sig-actions button {
+            display: inline-flex; align-items: center; justify-content: center; gap: 6px;
             min-height: 44px; padding: 8px 12px; font-size: 14px; cursor: pointer;
             border: 1px solid #bbb; border-radius: 6px; background: #fff;
         }
-        .sig-actions .primary { color: #fff; border-color: #1769aa; background: #1769aa; }
+        .sig-actions .primary { color: #1c1a17; font-weight: bold; border-color: #e08600; background: #e08600; }
         body.modal-open { overflow: hidden; }
+
+        /* Notifikasi kecil di atas (versi mini toast.js aplikasi, karena halaman ini tidak memuat style.css) */
+        .mini-toast {
+            position: fixed; top: 12px; left: 50%; z-index: 1100; transform: translateX(-50%);
+            display: flex; align-items: center; gap: 8px; width: max-content; max-width: calc(100vw - 24px);
+            padding: 10px 14px; font-size: 14px; background: #fff; color: #1c1c1a;
+            border: 1px solid #e2e1dc; border-left: 4px solid #b45309; border-radius: 6px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, .16);
+        }
+        .mini-toast[hidden] { display: none; }
+        .mini-toast::before { width: 18px; height: 18px; color: #b45309; }
 
         /* HP: popup muncul dari bawah, kanvas mengisi sisa layar */
         @media (max-width: 600px) {
@@ -130,7 +145,7 @@
 </head>
 <body>
     <div class="toolbar no-print">
-        <button type="button" id="btn-print" disabled>Print / Save as PDF</button>
+        <button type="button" id="btn-print" data-icon="printer" disabled>Print / Save as PDF</button>
         <span class="hint" id="print-hint">Lengkapi tanda tangan dan nama kedua pihak untuk mencetak.</span>
     </div>
 
@@ -226,14 +241,16 @@
         </div>
     </div>
 
+    <div class="mini-toast no-print" id="mini-toast" data-icon="alert-triangle" role="status" hidden></div>
+
     <div class="sig-overlay no-print" id="sig-overlay">
         <div class="sig-modal" role="dialog" aria-modal="true" aria-labelledby="sig-title">
             <div class="sig-modal-title" id="sig-title">Tanda Tangan</div>
             <canvas id="sig-canvas"></canvas>
             <div class="sig-actions">
-                <button type="button" id="sig-clear">Hapus</button>
-                <button type="button" id="sig-cancel">Batal</button>
-                <button type="button" id="sig-save" class="primary">Simpan</button>
+                <button type="button" id="sig-clear" data-icon="reset">Hapus</button>
+                <button type="button" id="sig-cancel" data-icon="x">Batal</button>
+                <button type="button" id="sig-save" class="primary" data-icon="check">Simpan</button>
             </div>
         </div>
     </div>
@@ -295,6 +312,16 @@
             });
         }
 
+        // Pesan singkat di atas layar, hilang sendiri (pengganti alert, tidak menghentikan halaman).
+        let toastTimer = null;
+        function showToast(message){
+            const el = document.getElementById('mini-toast');
+            el.textContent = message;
+            el.hidden = false;
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => { el.hidden = true; }, 3000);
+        }
+
         function closePad(){
             overlay.classList.remove('active');
             document.body.classList.remove('modal-open');
@@ -303,7 +330,7 @@
 
         function savePad(){
             if (!pad || pad.isEmpty()) {
-                alert('Tanda tangan masih kosong.');
+                showToast('Tanda tangan masih kosong.');
                 return;
             }
 
