@@ -35,6 +35,7 @@ try {
             'Item Code', 'Description', 'Exp Date', 'Pallet', 'Bin',
             'Qty', 'UoM', 'Conversion Factor', 'Qty SAP', 'UoM SAP', 'Remark', 'Last Update',
         ]);
+        $xlsx->setFourDecimalColumns(['Qty SAP']); // tampil 4 desimal, sama dengan di layar
 
         // Angka dari PDO datang sebagai string ("10.000"). Diubah ke float/int supaya
         // di Excel jadi sel angka yang bisa dijumlah, bukan teks.

@@ -125,7 +125,7 @@ try {
         $finalBin = $palletWasEmpty ? $binInput : $pallet['bin'];
 
         // qty SAP pakai faktor konversi milik pallet itu sendiri.
-        $qtySap = round($qtyActual * (float) $pallet['conversion_factor'], 3);
+        $qtySap = calculateQtySap($qtyActual, (float) $pallet['conversion_factor']);
 
         $stock->setQtyActual($qtyActual);
         $stock->setQtySap($qtySap);
@@ -143,7 +143,7 @@ try {
         $ledger->setPalletNumber($palletNumber);
         $ledger->setQtyActual($qtyActual);
         $ledger->setQtySap($qtySap);
-        $ledger->setSource($line['destination']);   // PRODUKSI / QUALITY, dari dokumen outbound
+        $ledger->setSource($line['destination']);   // PRODUKSI / QUALITY / OTHER, dari dokumen outbound
         $ledger->setDestinationBin($finalBin);
         $ledger->setUserId($userId);
         $ledger->setRemark($remark);

@@ -22,6 +22,15 @@ function readJsonBody(): array {
     return is_array($data) ? $data : [];
 }
 
+// Jumlah desimal qty SAP, sama dengan kolom qty_sap DECIMAL(15,4) di schema.sql.
+const QTY_SAP_DECIMALS = 4;
+
+// qty SAP = qty fisik x faktor konversi pallet. Satu-satunya rumus qty SAP di backend
+// (Inbound, Outbound, Retur), jadi pembulatannya pasti sama di semua transaksi.
+function calculateQtySap(float $qtyActual, float $conversionFactor): float {
+    return round($qtyActual * $conversionFactor, QTY_SAP_DECIMALS);
+}
+
 // Nomor pallet berikutnya untuk item_code + exp_date.
 // Cukup melihat tabel stock, karena pallet yang habis tidak dihapus (qty 0),
 // jadi nomor lama tidak akan pernah terpakai ulang.
@@ -84,11 +93,16 @@ function e($value): string {
     return htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
 }
 
-// Angka dari database ("1500.250") -> "1.500,25" (format Indonesia, maks 3 desimal).
+// Angka dari database ("1500.250") -> "1.500,25" (format Indonesia, maks 4 desimal).
 // Pasangan formatNumber() di tools.js, supaya angka di layar dan di cetakan sama.
 function formatNumber($value): string {
-    $text = number_format((float) $value, 3, ',', '.'); // "1.500,250"
+    $text = number_format((float) $value, 4, ',', '.'); // "1.500,2500"
     return rtrim(rtrim($text, '0'), ',');               // buang nol & koma di belakang
+}
+
+// Qty SAP selalu tampil 4 desimal: "5325" -> "5.325,0000". Pasangan formatQtySap() di tools.js.
+function formatQtySap($value): string {
+    return number_format((float) $value, QTY_SAP_DECIMALS, ',', '.');
 }
 
 // =========================================================

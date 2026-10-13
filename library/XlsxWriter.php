@@ -14,15 +14,21 @@
 // Cara pakai:
 //   $xlsx = new XlsxWriter('Stock');
 //   $xlsx->setHeaders(['Item Code', 'Qty']);
+//   $xlsx->setFourDecimalColumns(['Qty']); // opsional: tampil 10,5000
 //   $xlsx->addRow(['400010303', 10.5]);   // string -> teks, int/float -> angka
 //   $xlsx->download('stock.xlsx');
 // =========================================================
 
 class XlsxWriter {
+    // Format tampilan kolom 4 desimal (style 2 di stylesXml). Excel menampilkannya
+    // sesuai setelan bahasa komputer (Indonesia: 5.325,0000); isi selnya tetap angka.
+    private const FOUR_DECIMALS_FORMAT = '#,##0.0000';
+
     private $sheetName;
     private $headers = [];
     private $rows = [];
     private $columnWidths = [];
+    private $fourDecimalColumns = []; // index kolom => true
 
     public function __construct(string $sheetName = 'Sheet1') {
         // Nama sheet Excel maks 31 karakter dan tidak boleh berisi : \ / ? * [ ]
@@ -32,6 +38,17 @@ class XlsxWriter {
     public function setHeaders(array $headers): void {
         $this->headers = array_values($headers);
         $this->trackWidths($this->headers);
+    }
+
+    // Kolom angka yang selalu tampil 4 desimal (mis. Qty SAP), ditunjuk lewat judul kolomnya.
+    // Panggil SETELAH setHeaders() dan SEBELUM addRow() (lebar kolom dihitung saat addRow).
+    public function setFourDecimalColumns(array $headers): void {
+        foreach ($headers as $header) {
+            $index = array_search($header, $this->headers, true);
+            if ($index !== false) {
+                $this->fourDecimalColumns[$index] = true;
+            }
+        }
     }
 
     // Tipe nilai menentukan tipe sel: int/float jadi angka, selain itu teks.
@@ -118,6 +135,7 @@ class XlsxWriter {
             }
 
             if (!$isHeader && (is_int($value) || is_float($value))) {
+                $style = isset($this->fourDecimalColumns[$i]) ? ' s="2"' : '';
                 $xml .= "<c r=\"$ref\"$style><v>" . self::numberText($value) . '</v></c>';
             } else {
                 $xml .= "<c r=\"$ref\" t=\"inlineStr\"$style><is><t xml:space=\"preserve\">"
@@ -156,7 +174,11 @@ class XlsxWriter {
 
     private function trackWidths(array $values): void {
         foreach (array_values($values) as $i => $value) {
-            $len = mb_strlen(is_float($value) ? self::numberText($value) : (string) $value);
+            if (isset($this->fourDecimalColumns[$i]) && (is_int($value) || is_float($value))) {
+                $len = strlen(number_format($value, 4)); // panjang yang tampil: "5,325.0000"
+            } else {
+                $len = mb_strlen(is_float($value) ? self::numberText($value) : (string) $value);
+            }
             $this->columnWidths[$i] = max($this->columnWidths[$i] ?? 0, $len);
         }
     }
@@ -199,10 +221,12 @@ class XlsxWriter {
              . '</Relationships>';
     }
 
-    // Style 0 = normal, style 1 = tebal (untuk baris judul).
+    // Style 0 = normal, style 1 = tebal (untuk baris judul), style 2 = angka 4 desimal.
+    // Format angka buatan sendiri wajib bernomor 164 ke atas (0-163 milik Excel).
     private function stylesXml(): string {
         return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
              . '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+             . '<numFmts count="1"><numFmt numFmtId="164" formatCode="' . self::FOUR_DECIMALS_FORMAT . '"/></numFmts>'
              . '<fonts count="2">'
              .   '<font><sz val="11"/><name val="Calibri"/></font>'
              .   '<font><b/><sz val="11"/><name val="Calibri"/></font>'
@@ -210,9 +234,10 @@ class XlsxWriter {
              . '<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>'
              . '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>'
              . '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
-             . '<cellXfs count="2">'
+             . '<cellXfs count="3">'
              .   '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
              .   '<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
+             .   '<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>'
              . '</cellXfs>'
              . '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>'
              . '</styleSheet>';

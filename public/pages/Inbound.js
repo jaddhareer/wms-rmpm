@@ -1,4 +1,4 @@
-import { setContent, q, escapeHtml, binDatalistHtml, emptyRowHtml } from "../utilities/tools.js";
+import { setContent, q, escapeHtml, binDatalistHtml, emptyRowHtml, formatNumber, formatQtySap, QTY_SAP_DECIMALS } from "../utilities/tools.js";
 import { apiFetch } from "../utilities/auth.js";
 import { toast } from "../utilities/toast.js";
 import { materialAutocomplete, ITEM_CODE_PATTERN } from "../utilities/materialAutocomplete.js";
@@ -70,7 +70,10 @@ export function inbound(){
         </section>
 
         <section class="card">
-            <h3 class="card-title">Daftar Pallet <span class="badge" id="preview-count">0</span></h3>
+            <h3 class="card-title">
+                Daftar Pallet <span class="badge" id="preview-count">0</span>
+                <span class="card-summary" id="preview-total"></span>
+            </h3>
             <div class="table-wrap">
                 <table>
                     <thead>
@@ -153,7 +156,7 @@ function calculateQtySap(){
     const qty = parseFloat(q('#qty-fisik').value);
     const factor = parseFloat(q('#conversion-factor').value);
 
-    q('#qty-sap').value = (qty > 0 && factor > 0) ? (qty * factor).toFixed(3) : '';
+    q('#qty-sap').value = (qty > 0 && factor > 0) ? (qty * factor).toFixed(QTY_SAP_DECIMALS) : '';
 }
 
 async function handleAdd(){
@@ -221,8 +224,26 @@ async function handleAdd(){
     renderPreview();
 }
 
+// Total qty per UoM, mis. "150 ROLL, 20 BAG". Satu dokumen bisa berisi beberapa item
+// dengan UoM berbeda, dan ROLL + BAG tidak bisa dijumlah, jadi dikelompokkan per UoM.
+function sumByUnit(qtyKey, unitKey, format){
+    const totals = new Map(); // UoM -> total, urut sesuai pertama kali muncul
+
+    for (const row of state) {
+        const unit = row[unitKey];
+        totals.set(unit, (totals.get(unit) ?? 0) + parseFloat(row[qtyKey]));
+    }
+
+    return [...totals].map(([unit, total]) => `${format(total)} ${unit}`).join(', ');
+}
+
 function renderPreview(){
     q('#preview-count').textContent = state.length;
+
+    // textContent (bukan innerHTML), jadi UoM dari database aman tanpa escapeHtml.
+    q('#preview-total').textContent = state.length === 0 ? '' :
+        `Total: ${sumByUnit('qty_actual', 'uom_fisik', formatNumber)}`
+        + ` · GR Qty: ${sumByUnit('qty_sap', 'uom_sap', formatQtySap)}`;
 
     if (state.length === 0) {
         q('#preview-body').innerHTML = emptyRowHtml(13, 'Belum ada pallet. Isi form di atas lalu klik Add.');

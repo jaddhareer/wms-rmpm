@@ -157,7 +157,8 @@ async function handleLogout(){
 }
 
 // Menggambar halaman. Dipanggil oleh router (klik menu, back/forward, refresh).
-// params = parameter dari URL, mis. { code: 'RMPMOB26090007' } untuk #retur?code=...
+// params = parameter dari URL, mis. { code: 'RMPMOB26090007' } untuk #retur?code=...,
+// atau { item, exp, pallet } untuk #outbound / #bintobin yang dibuka dari Stock Overview.
 function renderPage(page, params = {}){
     activePage = page;
     markActiveMenu();
@@ -174,9 +175,9 @@ function renderPage(page, params = {}){
     } else if(page === 'inbound'){
         inbound();
     } else if(page === 'outbound'){
-        outbound();
+        outbound(params);
     } else if(page === 'bintobin'){
-        bintobin();
+        bintobin(params);
     } else if(page === 'retur'){
         retur(params);
     } else if(page === 'transactions'){

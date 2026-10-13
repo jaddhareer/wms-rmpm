@@ -172,8 +172,8 @@ class Stock {
     // BAGIAN BACA (halaman Stock Overview). Polanya sama dengan Transactions:
     // buildWhere() menyusun filter, method lain tinggal memakainya.
     //
-    // Tabel utama berisi RINGKASAN per lot (item_code + exp_date): jumlah pallet,
-    // total qty, dan daftar bin. Klik item code -> daftar pallet lot itu.
+    // Tabel utama berisi RINGKASAN per lot (item_code + exp_date): jumlah pallet dan
+    // total qty. Bin tidak ditampilkan di sini; klik item code -> daftar pallet + bin-nya.
     // =========================================================
 
     // Kunci pengelompokan per lot. Dipakai searchLots() DAN countLots(), jadi jumlah
@@ -204,7 +204,6 @@ class Stock {
                        COUNT(*)          AS pallet_count,
                        SUM(s.qty_actual) AS qty_actual,
                        SUM(s.qty_sap)    AS qty_sap,
-                       GROUP_CONCAT(DISTINCT s.bin ORDER BY s.bin SEPARATOR ', ')  AS bins,
                        GROUP_CONCAT(DISTINCT NULLIF(s.remark, '') SEPARATOR '; ') AS remarks
                 " . $this->readFrom() . "
                 $where

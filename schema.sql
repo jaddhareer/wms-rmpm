@@ -39,6 +39,10 @@ CREATE TABLE IF NOT EXISTS material_master (
 ) ENGINE=InnoDB;
 
 -- Posisi stok saat ini. Satu baris = satu pallet fisik (termasuk yang sudah habis, qty 0).
+-- qty_sap 4 desimal (= qty_actual 3 desimal x faktor 4 desimal, dibulatkan 4). Database lama
+-- yang kolomnya masih DECIMAL(14,3) cukup dilebarkan, datanya tidak berubah:
+--   ALTER TABLE stock        MODIFY qty_sap DECIMAL(15,4) NOT NULL;
+--   ALTER TABLE transactions MODIFY qty_sap DECIMAL(15,4) NOT NULL;
 CREATE TABLE stock (
     id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     item_code     VARCHAR(20)   NOT NULL,
@@ -47,7 +51,7 @@ CREATE TABLE stock (
     bin           VARCHAR(20)   NOT NULL,
     qty_actual    DECIMAL(14,3) NOT NULL,
     conversion_factor DECIMAL(12,4) NOT NULL, -- faktor pallet ini (bisa beda dari default material master)
-    qty_sap       DECIMAL(14,3) NOT NULL,
+    qty_sap       DECIMAL(15,4) NOT NULL,
     remark        VARCHAR(255)  NULL,
     updated_at    TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
@@ -66,10 +70,11 @@ CREATE TABLE stock (
 --
 -- Pemetaan kolom source/destination per transaction_type:
 --   INBOUND  -> source = supplier,                 destination_bin = bin taruh
---   OUTBOUND -> source_bin = bin asal,             destination = 'PRODUKSI'/'QUALITY'
+--   OUTBOUND -> source_bin = bin asal,             destination = 'PRODUKSI'/'QUALITY'/'OTHER'
+--               (OTHER = keluar karena alasan lain, mis. rusak; alasannya wajib di remark)
 --   MUTASI   -> source_bin = bin asal,             destination_bin = bin tujuan
---   RETUR    -> source = 'PRODUKSI'/'QUALITY',     destination_bin = bin taruh balik,
---               reference_code = kode OUTBOUND asal
+--   RETUR    -> source = destination dokumen OUTBOUND asal (PRODUKSI/QUALITY/OTHER),
+--               destination_bin = bin taruh balik, reference_code = kode OUTBOUND asal
 CREATE TABLE transactions (
     id                BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     transaction_code  VARCHAR(20)   NOT NULL, -- mis. RMPMIB26090001
@@ -81,9 +86,9 @@ CREATE TABLE transactions (
     pallet_number INT UNSIGNED  NOT NULL,
 
     qty_actual    DECIMAL(14,3) NOT NULL,
-    qty_sap       DECIMAL(14,3) NOT NULL,
+    qty_sap       DECIMAL(15,4) NOT NULL,
 
-    source            VARCHAR(100) NULL,
+    source           VARCHAR(100) NULL,
     source_bin        VARCHAR(20)  NULL,
     destination       VARCHAR(100) NULL,
     destination_bin   VARCHAR(20)  NULL,

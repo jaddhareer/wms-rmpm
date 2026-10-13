@@ -16,7 +16,8 @@ if (count($items) === 0) {
 $db = new Database();
 $conn = $db->getConnection();
 
-$allowedDestinations = ['PRODUKSI', 'QUALITY'];
+// OTHER = barang keluar karena alasan lain (mis. rusak). Alasannya wajib ditulis di remark.
+$allowedDestinations = ['PRODUKSI', 'QUALITY', 'OTHER'];
 
 try {
     $conn->beginTransaction();
@@ -42,7 +43,10 @@ try {
             throw new Exception("Baris $row: quantity harus lebih dari 0");
         }
         if (!in_array($destination, $allowedDestinations, true)) {
-            throw new Exception("Baris $row: tujuan harus PRODUKSI atau QUALITY");
+            throw new Exception("Baris $row: tujuan harus PRODUKSI, QUALITY, atau OTHER");
+        }
+        if ($destination === 'OTHER' && $remark === '') {
+            throw new Exception("Baris $row: tujuan OTHER wajib diisi remark (alasan barang keluar)");
         }
 
         $stock = new Stock($conn);
@@ -56,7 +60,7 @@ try {
         }
 
         // Pakai faktor milik pallet ini (yang dicatat saat inbound), bukan default master.
-        $qtySap = round($qtyActual * (float) $pallet['conversion_factor'], 3);
+        $qtySap = calculateQtySap($qtyActual, (float) $pallet['conversion_factor']);
 
         $stock->setQtyActual($qtyActual);
         $stock->setQtySap($qtySap);

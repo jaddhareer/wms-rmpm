@@ -188,7 +188,7 @@
                     <td class="nowrap"><?= e($r['exp_date']) ?></td>
                     <td class="num"><?= e($r['pallet_number']) ?></td>
                     <td class="num"><?= formatNumber($r['qty_actual']) ?> <?= e($r['uom_fisik']) ?></td>
-                    <td class="num"><?= formatNumber($r['qty_sap']) ?> <?= e($r['uom_sap']) ?></td>
+                    <td class="num"><?= formatQtySap($r['qty_sap']) ?> <?= e($r['uom_sap']) ?></td>
                     <td class="nowrap"><?= e($fromOf($r)) ?></td>
                     <td class="nowrap"><?= e($toOf($r)) ?></td>
                     <?php if ($commonRemark === null): ?><td><?= e($r['remark']) ?></td><?php endif; ?>
@@ -215,7 +215,7 @@
                     <td class="nowrap"><?= e($s['exp_date']) ?></td>
                     <td class="num"><?= $s['pallets'] ?></td>
                     <td class="num"><?= formatNumber($s['qty_actual']) ?> <?= e($s['uom_fisik']) ?></td>
-                    <td class="num"><?= formatNumber($s['qty_sap']) ?> <?= e($s['uom_sap']) ?></td>
+                    <td class="num"><?= formatQtySap($s['qty_sap']) ?> <?= e($s['uom_sap']) ?></td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>

@@ -1,10 +1,13 @@
-import { setContent, q, escapeHtml, binDatalistHtml } from "../utilities/tools.js";
+import { setContent, q, escapeHtml, binDatalistHtml, fetchPallet } from "../utilities/tools.js";
 import { apiFetch } from "../utilities/auth.js";
 import { toast } from "../utilities/toast.js";
 import { openPopup, closePopup, onRowPick } from "../utilities/popups.js";
 import { materialAutocomplete, ITEM_CODE_PATTERN } from "../utilities/materialAutocomplete.js";
+import { replaceParams } from "../utilities/router.js";
 
-export function bintobin(){
+// params dari router. Dibuka dari popup Stock Overview -> { item, exp, pallet }:
+// form langsung terisi pallet itu, operator tinggal mengisi Target Bin.
+export function bintobin(params = {}){
     setContent(`
         <div class="page-header"><h2>Bin to Bin</h2></div>
 
@@ -53,6 +56,41 @@ export function bintobin(){
         inStockOnly: true,
         onSelect: () => autoFillData('item'),
     });
+
+    if (params.item && params.exp && params.pallet) {
+        preselectPallet(params);
+    }
+}
+
+// Dibuka dari popup Stock Overview: isi form dari stok terbaru pallet itu.
+async function preselectPallet({ item, exp, pallet }){
+    // Parameter ini perintah sekali pakai, bukan isi halaman. URL dibersihkan supaya
+    // refresh / back-forward tidak mengisi pallet yang sama lagi.
+    replaceParams('bintobin');
+
+    q('#item-code').value = item;
+
+    let found;
+    try {
+        found = await fetchPallet(item, exp, pallet);
+    } catch (err) {
+        toast('Gagal memuat pallet: ' + err.message, 'error');
+        return;
+    }
+
+    // Abaikan jawaban basi (item code sudah diganti / sudah pindah halaman).
+    if (q('#item-code')?.value.trim() !== item) return;
+
+    if (!found) {
+        toast(`Pallet ${pallet} (${item}, exp ${exp}) sudah tidak ada stoknya`, 'warning');
+        return;
+    }
+
+    q('#source-bin').value    = found.bin;
+    q('#exp-date').value      = found.exp_date;
+    q('#pallet-number').value = found.pallet_number;
+    q('#qty').value           = found.qty_actual;
+    q('#target-bin').focus();
 }
 
 // mode = input mana yang memicu: 'bin' (source bin) atau 'item' (item code).

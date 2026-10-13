@@ -1,8 +1,9 @@
-import { setContent, q, escapeHtml, debounce, formatNumber, binDatalistHtml, downloadFile } from "../utilities/tools.js";
-import { apiFetch } from "../utilities/auth.js";
+import { setContent, q, escapeHtml, debounce, formatNumber, formatQtySap, binDatalistHtml, downloadFile } from "../utilities/tools.js";
+import { apiFetch, canOpen } from "../utilities/auth.js";
 import { toast } from "../utilities/toast.js";
 import { openPopup, closePopup } from "../utilities/popups.js";
 import { paginationHtml } from "../utilities/pagination.js";
+import { navigateTo } from "../utilities/router.js";
 
 // Struktur halaman ini sama dengan transactions.js:
 // state { filters, page } -> query string -> controller -> render tabel + paginasi.
@@ -65,7 +66,7 @@ export function stock(){
                 <table>
                     <thead>
                         <tr>
-                            <th>Item Code</th><th>Description</th><th>Exp Date</th><th class="num">Pallet</th><th>Bin</th>
+                            <th>Item Code</th><th>Description</th><th>Exp Date</th><th class="num">Pallet</th>
                             <th class="num">Qty</th><th>UoM</th><th class="num">Qty SAP</th><th>UoM SAP</th><th>Remark</th>
                         </tr>
                     </thead>
@@ -174,13 +175,8 @@ async function loadData(){
     }
 }
 
-// Daftar bin bisa panjang (satu lot di banyak rak). Tampilkan 3 pertama, sisanya diringkas.
-function binSummary(bins){
-    const list = (bins || '').split(', ').filter(Boolean);
-    if (list.length <= 3) return list.join(', ');
-    return `${list.slice(0, 3).join(', ')} +${list.length - 3} lagi`;
-}
-
+// Satu baris = satu lot (item + exp). Bin tidak ditampilkan di sini: satu lot bisa
+// tersebar di banyak bin, jadi bin dilihat per pallet di popup detail.
 function renderRows(rows){
     q('#stock-body').innerHTML = rows.map(row => `
         <tr>
@@ -193,10 +189,9 @@ function renderRows(rows){
             <td class="wrap">${escapeHtml(row.description)}</td>
             <td>${escapeHtml(row.exp_date)}</td>
             <td class="num">${escapeHtml(row.pallet_count)}</td>
-            <td title="${escapeHtml(row.bins)}">${escapeHtml(binSummary(row.bins))}</td>
             <td class="num">${formatNumber(row.qty_actual)}</td>
             <td>${escapeHtml(row.uom_fisik)}</td>
-            <td class="num">${formatNumber(row.qty_sap)}</td>
+            <td class="num">${formatQtySap(row.qty_sap)}</td>
             <td>${escapeHtml(row.uom_sap)}</td>
             <td class="wrap">${escapeHtml(row.remarks)}</td>
         </tr>
@@ -235,13 +230,25 @@ async function showLotDetail(itemCode, expDate){
         const totalQty = rows.reduce((sum, r) => sum + parseFloat(r.qty_actual), 0);
         const totalSap = rows.reduce((sum, r) => sum + parseFloat(r.qty_sap), 0);
 
+        // Tombol pindah ke menu lain hanya untuk menu yang boleh dibuka role ini.
+        // [nama menu, teks, ikon] — nama menu sama dengan MENU_GROUPS di main.js.
+        const actions = [['bintobin', 'Move', 'swap'], ['outbound', 'Outbound', 'outbound']]
+            .filter(([page]) => canOpen(page));
+
+        const actionsHtml = (index) => `
+            <td><div class="row-actions">
+                ${actions.map(([page, label, icon]) => `
+                    <button type="button" class="btn-sm btn-soft" data-goto="${page}" data-index="${index}" data-icon="${icon}">${label}</button>
+                `).join('')}
+            </div></td>`;
+
         const box = openPopup(`
             <h3>${escapeHtml(head.item_code)} — ${escapeHtml(head.description)}</h3>
             <dl class="meta-list">
                 <dt>Exp Date</dt> <dd>${escapeHtml(head.exp_date)}</dd>
                 <dt>Jumlah</dt>   <dd>${rows.length} pallet</dd>
                 <dt>Total</dt>    <dd>${formatNumber(totalQty)} ${escapeHtml(head.uom_fisik)}
-                                      (${formatNumber(totalSap)} ${escapeHtml(head.uom_sap)})</dd>
+                                      (${formatQtySap(totalSap)} ${escapeHtml(head.uom_sap)})</dd>
             </dl>
             <div class="table-wrap">
                 <table>
@@ -249,20 +256,22 @@ async function showLotDetail(itemCode, expDate){
                         <tr>
                             <th class="num">Pallet</th><th>Bin</th><th class="num">Qty</th><th>UoM</th><th class="num">Faktor</th>
                             <th class="num">Qty SAP</th><th>UoM SAP</th><th>Remark</th><th>Last Update</th>
+                            ${actions.length ? '<th></th>' : ''}
                         </tr>
                     </thead>
                     <tbody>
-                        ${rows.map(r => `
+                        ${rows.map((r, index) => `
                             <tr>
                                 <td class="num">${escapeHtml(r.pallet_number)}</td>
                                 <td>${escapeHtml(r.bin)}</td>
                                 <td class="num">${formatNumber(r.qty_actual)}</td>
                                 <td>${escapeHtml(r.uom_fisik)}</td>
                                 <td class="num">${formatNumber(r.conversion_factor)}</td>
-                                <td class="num">${formatNumber(r.qty_sap)}</td>
+                                <td class="num">${formatQtySap(r.qty_sap)}</td>
                                 <td>${escapeHtml(r.uom_sap)}</td>
                                 <td class="wrap">${escapeHtml(r.remark)}</td>
                                 <td>${escapeHtml(r.updated_at)}</td>
+                                ${actions.length ? actionsHtml(index) : ''}
                             </tr>
                         `).join('')}
                     </tbody>
@@ -274,6 +283,23 @@ async function showLotDetail(itemCode, expDate){
         `);
 
         box.querySelector('#btn-close-popup').addEventListener('click', closePopup);
+
+        // Move / Outbound: buka menu itu dengan pallet ini langsung terpilih.
+        // Identitas pallet (item + exp + nomor) dikirim lewat URL, mis.
+        // #outbound?item=400010303&exp=2027-01-31&pallet=2. Halaman tujuan membaca
+        // ulang stoknya dari server, jadi qty yang dipakai selalu yang terbaru.
+        box.addEventListener('click', (e) => {
+            const button = e.target.closest('[data-goto]');
+            if (!button) return;
+
+            const pallet = rows[Number(button.dataset.index)];
+            closePopup();
+            navigateTo(button.dataset.goto, {
+                item:   pallet.item_code,
+                exp:    pallet.exp_date,
+                pallet: pallet.pallet_number,
+            });
+        });
 
     } catch (err) {
         toast('Tidak bisa menghubungi server: ' + err.message, 'error');

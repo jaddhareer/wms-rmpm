@@ -48,6 +48,7 @@ try {
             'ID Transaksi', 'Jenis', 'Item Code', 'Description', 'Exp Date', 'Pallet',
             'From', 'To', 'Qty', 'UoM', 'Qty SAP', 'UoM SAP', 'User', 'Remark', 'Date Time',
         ]);
+        $xlsx->setFourDecimalColumns(['Qty SAP']); // tampil 4 desimal, sama dengan di layar
 
         foreach ($rows as $r) {
             $xlsx->addRow([

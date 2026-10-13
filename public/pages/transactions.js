@@ -1,4 +1,4 @@
-import { setContent, q, escapeHtml, debounce, formatNumber, downloadFile } from "../utilities/tools.js";
+import { setContent, q, escapeHtml, debounce, formatNumber, formatQtySap, downloadFile } from "../utilities/tools.js";
 import { apiFetch } from "../utilities/auth.js";
 import { toast } from "../utilities/toast.js";
 import { openPopup, closePopup } from "../utilities/popups.js";
@@ -251,7 +251,7 @@ async function loadData(){
     }
 }
 
-// Asal & tujuan: bin kalau ada, kalau tidak nama supplier / PRODUKSI / QUALITY.
+// Asal & tujuan: bin kalau ada, kalau tidak nama supplier / PRODUKSI / QUALITY / OTHER.
 function fromOf(row){ return row.source_bin || row.source || ''; }
 function toOf(row){ return row.destination_bin || row.destination || ''; }
 
@@ -268,7 +268,7 @@ function renderRows(rows){
             <td>${escapeHtml(toOf(row))}</td>
             <td class="num">${formatNumber(row.qty_actual)}</td>
             <td>${escapeHtml(row.uom_fisik)}</td>
-            <td class="num">${formatNumber(row.qty_sap)}</td>
+            <td class="num">${formatQtySap(row.qty_sap)}</td>
             <td>${escapeHtml(row.uom_sap)}</td>
             <td>${escapeHtml(row.user_name)}</td>
             <td class="wrap">${escapeHtml(row.remark)}</td>
@@ -329,7 +329,7 @@ async function showDetail(code){
                                 <td>${escapeHtml(toOf(row))}</td>
                                 <td class="num">${formatNumber(row.qty_actual)}</td>
                                 <td>${escapeHtml(row.uom_fisik)}</td>
-                                <td class="num">${formatNumber(row.qty_sap)}</td>
+                                <td class="num">${formatQtySap(row.qty_sap)}</td>
                                 <td>${escapeHtml(row.uom_sap)}</td>
                                 <td class="wrap">${escapeHtml(row.remark)}</td>
                             </tr>

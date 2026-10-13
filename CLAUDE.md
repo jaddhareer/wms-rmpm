@@ -59,7 +59,7 @@ index.html   kerangka SPA
 - Respons JSON lewat `jsonResponse($data, $status)` (memanggil `exit`). Body POST dikirim sebagai JSON → baca dengan `readJsonBody()`, bukan `$_POST`. GET → `$_GET`.
 - Transaksi tulis: validasi dulu → `beginTransaction()` → langkah-langkah → `commit()`. Pelanggaran aturan bisnis dilempar sebagai `Exception`. Di `catch`: **`rollBack()` dulu, baru `jsonResponse()`** (karena jsonResponse exit).
 - Update stok anti-race: `UPDATE ... WHERE qty_actual >= :qty_check` lalu cek `rowCount() > 0`. Placeholder bernama tidak boleh dipakai dua kali dalam satu query (pakai nama berbeda, mis. `:qty_out` & `:qty_check`). `findPallet()` memakai `SELECT ... FOR UPDATE`.
-- `qty_sap` SELALU dihitung di backend = `qty × conversion_factor` milik pallet. Angka dari frontend hanya untuk tampilan.
+- `qty_sap` SELALU dihitung di backend lewat `calculateQtySap()` (helper.php) = `qty × conversion_factor` milik pallet, dibulatkan 4 desimal (kolom DECIMAL(15,4)). Angka dari frontend hanya untuk tampilan. Tampilan qty SAP selalu 4 desimal: `formatQtySap()` (tools.js / helper.php), Excel: `setFourDecimalColumns()`.
 - LIMIT/OFFSET di-cast ke int lalu ditulis langsung ke SQL. Nilai lain selalu lewat placeholder.
 - Escape HTML saat DITAMPILKAN (`escapeHtml()` di JS, `e()` di PHP), bukan saat disimpan. `sanitize()` hanya trim.
 - Hati-hati: `?>` di dalam komentar `//` PHP tetap menutup tag PHP.
@@ -71,9 +71,9 @@ index.html   kerangka SPA
 - `transaction_code` = `RMPM` + `IB|OB|MT|RT` + `YYMM` + 4 digit urut. Satu kode per submit (satu dokumen, banyak baris). PK = `id`.
 - Isi kolom ledger per jenis:
   - INBOUND: `source` = supplier, `destination_bin`
-  - OUTBOUND: `source_bin`, `destination` = PRODUKSI / QUALITY
+  - OUTBOUND: `source_bin`, `destination` = PRODUKSI / QUALITY / OTHER (OTHER = alasan lain, mis. rusak; remark wajib, dicek di frontend & Outbound.php)
   - MUTASI (Bin to Bin): `source_bin` → `destination_bin`
-  - RETUR: `source` = PRODUKSI / QUALITY, `destination_bin`, `reference_code` = kode OUTBOUND asal. Barang kembali ke nomor pallet asalnya.
+  - RETUR: `source` = tujuan OUTBOUND asal (PRODUKSI / QUALITY / OTHER), `destination_bin`, `reference_code` = kode OUTBOUND asal. Barang kembali ke nomor pallet asalnya.
 - `users`: **tidak pernah di-DELETE** (`transactions.user_id` FK ke sini). User yang keluar → `is_active = 0`. Username tidak bisa diubah setelah dibuat. Admin tidak bisa mengubah role / menonaktifkan akun sendiri, dan harus tersisa minimal satu admin aktif (dicek dengan `FOR UPDATE` di dalam transaction).
 - Lokasi TIDAK disimpan, diturunkan dari nama bin (`Dashboard::LOCATIONS`): rak `A-`–`D-` = Gudang 40, `E-`–`F-` = Gudang 50, `FLOOR 40`, `FLOOR 50`. `STAGE` tidak dihitung okupansi.
 
@@ -82,7 +82,7 @@ index.html   kerangka SPA
 - Vanilla ES Modules, tanpa framework. State di scope modul, DOM digambar ulang dari state. Event delegation di elemen induk yang stabil.
 - Semua data yang masuk `innerHTML` wajib lewat `escapeHtml()`.
 - Fetch yang bisa basi (ketik cepat / pindah halaman) memakai penanda `requestId`. Filter saat mengetik memakai `debounce`.
-- Router: `public/utilities/router.js`, URL hash dengan parameter (mis. `#retur?code=RMPMOB...`). Halaman memanggil `navigateTo()` dari router, bukan dari main.js (menghindari import melingkar).
+- Router: `public/utilities/router.js`, URL hash dengan parameter (mis. `#retur?code=RMPMOB...`; `#outbound` / `#bintobin?item=..&exp=..&pallet=..` dari popup Stock Overview = isi otomatis sekali pakai, URL lalu dibersihkan dengan `replaceParams`). Halaman memanggil `navigateTo()` dari router, bukan dari main.js (menghindari import melingkar).
 - **Path fetch selalu relatif**: `controller/Xxx.php`, JANGAN `/wms-rmpm/controller/...` (supaya tidak terikat nama folder/host).
 - **Request ke controller memakai `apiFetch()` dari `utilities/auth.js`, bukan `fetch()` langsung.** Kalau server membalas 401, `apiFetch` membuka popup login ulang lalu mengirim ulang request yang sama (isi form tidak hilang). Hanya `auth.js` sendiri yang memakai `fetch()` (login/logout/me). `auth.js` tidak boleh meng-import apa pun dari project (tools.js & users.js meng-import auth.js).
 - Menu navbar digambar dari `MENU_GROUPS` di `main.js`, disaring `canOpen(page)` (daftar `pages` dari server saat login). Menu baru: tambahkan di `MENU_GROUPS` DAN di `ROLE_PAGES` (helper.php). Menyembunyikan menu hanya tampilan; penjaganya `requireLogin('menu')` di controller.

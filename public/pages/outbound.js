@@ -1,8 +1,9 @@
-import { setContent, q, escapeHtml, emptyRowHtml } from "../utilities/tools.js";
+import { setContent, q, escapeHtml, emptyRowHtml, fetchPallet, QTY_SAP_DECIMALS } from "../utilities/tools.js";
 import { apiFetch } from "../utilities/auth.js";
 import { toast } from "../utilities/toast.js";
 import { openPopup, closePopup, onRowPick } from "../utilities/popups.js";
 import { materialAutocomplete, ITEM_CODE_PATTERN } from "../utilities/materialAutocomplete.js";
+import { replaceParams } from "../utilities/router.js";
 
 // Pallet yang sudah di-Add tapi belum di-submit.
 let state = [];
@@ -10,7 +11,9 @@ let state = [];
 // Pallet yang sedang dipilih di form (satu baris dari StockController).
 let selectedPallet = null;
 
-export function outbound(){
+// params dari router. Dibuka dari popup Stock Overview -> { item, exp, pallet }:
+// pallet itu langsung dipilih di form.
+export function outbound(params = {}){
     selectedPallet = null;
 
     setContent(`
@@ -24,6 +27,7 @@ export function outbound(){
                         <option value="">-- pilih --</option>
                         <option value="PRODUKSI">Produksi</option>
                         <option value="QUALITY">Quality</option>
+                        <option value="OTHER">Other</option>
                     </select>
                 </div>
                 <hr>
@@ -98,6 +102,7 @@ export function outbound(){
         </section>
     `);
 
+    q('#destination').addEventListener('change', updateRemarkRule);
     q('#item-code').addEventListener('input', handleItemCodeInput);
     // Ketik deskripsi -> pilih saran -> sama seperti scan item code: daftar pallet dimuat.
     // Hanya material yang masih ada stoknya yang disarankan.
@@ -112,6 +117,50 @@ export function outbound(){
     q('#preview-body').addEventListener('click', handleDeleteRow);
 
     renderPreview();
+
+    if (params.item && params.exp && params.pallet) {
+        preselectPallet(params);
+    }
+}
+
+// Tujuan OTHER (mis. barang rusak): alasan barang keluar wajib ditulis di remark.
+// Server memeriksa aturan yang sama (Outbound.php).
+function updateRemarkRule(){
+    const required = q('#destination').value === 'OTHER';
+    q('#remark').required = required;
+    q('#remark').placeholder = required ? 'Wajib: alasan barang keluar' : '';
+}
+
+// Dibuka dari popup Stock Overview: pilih pallet itu, dengan stok terbaru dari server.
+async function preselectPallet({ item, exp, pallet }){
+    // Parameter ini perintah sekali pakai, bukan isi halaman. URL dibersihkan supaya
+    // refresh / back-forward tidak memilih pallet yang sama lagi.
+    replaceParams('outbound');
+
+    q('#item-code').value = item;
+
+    let found;
+    try {
+        found = await fetchPallet(item, exp, pallet);
+    } catch (err) {
+        toast('Gagal memuat pallet: ' + err.message, 'error');
+        return;
+    }
+
+    // Abaikan jawaban basi (item code sudah diganti / sudah pindah halaman).
+    if (q('#item-code')?.value.trim() !== item) return;
+
+    if (!found) {
+        toast(`Pallet ${pallet} (${item}, exp ${exp}) sudah tidak ada stoknya`, 'warning');
+        return;
+    }
+    if (state.some(row => samePallet(row, found))) {
+        toast('Pallet ini sudah ada di daftar', 'warning');
+        return;
+    }
+
+    selectPallet(found);
+    q('#destination').focus(); // tujuan selalu kosong saat halaman baru dibuka
 }
 
 // Identitas pallet = item_code + exp_date + pallet_number.
@@ -223,12 +272,13 @@ function calculateQtySap(){
     const qty = parseFloat(q('#qty-fisik').value);
     const factor = parseFloat(selectedPallet?.conversion_factor);
 
-    q('#qty-sap').value = (qty > 0 && factor > 0) ? (qty * factor).toFixed(3) : '';
+    q('#qty-sap').value = (qty > 0 && factor > 0) ? (qty * factor).toFixed(QTY_SAP_DECIMALS) : '';
 }
 
 function handleAdd(){
     const destination = q('#destination').value;
     const qtyFisik = parseFloat(q('#qty-fisik').value);
+    const remark = q('#remark').value.trim();
 
     if (!destination) {
         toast('Pilih tujuan outbound', 'warning');
@@ -252,6 +302,11 @@ function handleAdd(){
         toast('Pallet ini sudah ada di daftar', 'warning');
         return;
     }
+    if (destination === 'OTHER' && !remark) {
+        toast('Tujuan Other wajib diisi remark (alasan barang keluar)', 'warning');
+        q('#remark').focus();
+        return;
+    }
 
     state.push({
         item_code:     selectedPallet.item_code,
@@ -264,7 +319,7 @@ function handleAdd(){
         uom_fisik:     selectedPallet.uom_fisik,
         qty_sap:       q('#qty-sap').value,
         uom_sap:       selectedPallet.uom_sap,
-        remark:        q('#remark').value.trim(),
+        remark:        remark,
     });
 
     q('#item-code').value = '';

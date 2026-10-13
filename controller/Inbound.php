@@ -54,7 +54,7 @@ try {
         }
 
         // qty_sap tetap dihitung di server dari faktor itu, bukan diambil mentah dari frontend.
-        $qtySap = round($qtyActual * $conversionFactor, 3);
+        $qtySap = calculateQtySap($qtyActual, $conversionFactor);
 
         // Nomor pallet dihitung ulang di server, pakai $conn yang sama.
         $palletNumber = generatePalletNumber($conn, $itemCode, $expDate);

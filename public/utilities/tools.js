@@ -42,10 +42,33 @@ export function debounce(fn, delay = 300){
     };
 }
 
-// Angka dari database ("1000.000") -> "1.000" (format Indonesia, maks 3 desimal).
+// Angka dari database ("1000.000") -> "1.000" (format Indonesia, maks 4 desimal).
 export function formatNumber(value){
     const n = parseFloat(value);
-    return Number.isFinite(n) ? n.toLocaleString('id-ID', { maximumFractionDigits: 3 }) : '';
+    return Number.isFinite(n) ? n.toLocaleString('id-ID', { maximumFractionDigits: 4 }) : '';
+}
+
+// Jumlah desimal qty SAP, sama dengan QTY_SAP_DECIMALS di config/helper.php.
+export const QTY_SAP_DECIMALS = 4;
+
+// Qty SAP selalu tampil 4 desimal: "5325" -> "5.325,0000". Pasangan formatQtySap() di helper.php.
+export function formatQtySap(value){
+    const n = parseFloat(value);
+    return Number.isFinite(n)
+        ? n.toLocaleString('id-ID', { minimumFractionDigits: QTY_SAP_DECIMALS, maximumFractionDigits: QTY_SAP_DECIMALS })
+        : '';
+}
+
+// Satu pallet yang masih ada stoknya (item + exp + nomor pallet), atau null kalau sudah
+// habis / tidak ada. Dipakai halaman yang dibuka dari popup Stock Overview,
+// mis. #outbound?item=400010303&exp=2027-01-31&pallet=2.
+export async function fetchPallet(itemCode, expDate, palletNumber){
+    const res = await apiFetch(`controller/StockController.php?item_code=${encodeURIComponent(itemCode)}`);
+    const data = await res.json();
+
+    if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+
+    return data.find(p => p.exp_date === expDate && Number(p.pallet_number) === Number(palletNumber)) ?? null;
 }
 // Saran bin yang muncul di semua input bin (lewat <datalist>).
 // Ubah di SATU tempat ini kalau penulisan bin floor di lapangan berbeda.

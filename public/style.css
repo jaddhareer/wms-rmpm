@@ -92,7 +92,7 @@ hr { margin: 16px 0; border: 0; border-top: 1px solid var(--border); }
 :where(input:not([type="checkbox"], [type="radio"]), select, textarea) {
     width: 100%;
     min-height: var(--control-h);
-    padding: 8px 10px;
+    padding: 5px 10px;
     font-family: inherit;
     font-size: 15px;
     font-weight: 400;
@@ -102,6 +102,20 @@ hr { margin: 16px 0; border: 0; border-top: 1px solid var(--border); }
     border: 1px solid var(--input-border);
     border-radius: var(--radius-sm);
     transition: border-color .15s, box-shadow .15s;
+}
+
+/* <select>: panah bawaan browser menempel ke border kanan dan posisinya tidak bisa diatur,
+   jadi diganti panah sendiri (sama dengan .dropdown-toggle): 16px, 8px dari border kanan,
+   teks diberi ruang 32px (8 + 16 + 8) supaya tidak tertimpa panah.
+   Warna panah = --muted (#75736c); variabel CSS tidak bisa dipakai di dalam data URI. */
+:where(select) {
+    appearance: none;
+    padding-right: 32px;
+    background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2375736c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    background-size: 16px;
+    cursor: pointer;
 }
 
 :where(input:not([type="checkbox"], [type="radio"]):focus, select:focus, textarea:focus) {
@@ -115,7 +129,7 @@ hr { margin: 16px 0; border: 0; border-top: 1px solid var(--border); }
 :where(input:disabled, select:disabled, textarea:disabled) {
     color: var(--text);
     -webkit-text-fill-color: var(--text);  /* Safari meredupkan teks input disabled */
-    background: var(--surface-2);
+    background-color: var(--surface-2);    /* bukan "background": panah <select> tetap ada */
     border-color: var(--border);
     opacity: 1;
     cursor: not-allowed;
@@ -399,7 +413,10 @@ input[type="checkbox"], input[type="radio"] { width: 18px; height: 18px; accent-
     gap: 8px 16px;
     margin-bottom: 14px;
 }
-.card-title { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; font-size: 16px; font-weight: 600; }
+.card-title { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 14px; font-size: 16px; font-weight: 600; }
+/* Ringkasan kecil di samping judul kartu (mis. total qty Daftar Pallet Inbound). */
+.card-summary { font-size: 14px; font-weight: 400; color: var(--text-2); }
+.card-summary:empty { display: none; }
 .card-head .card-title { margin: 0; }
 
 /* Grid form: jumlah kolom menyesuaikan lebar layar sendiri (min. 200px per kolom),
@@ -532,6 +549,7 @@ input[type="checkbox"], input[type="radio"] { width: 18px; height: 18px; accent-
 .filter-fields > .field.fit { flex: 0 1 auto; }
 .filter-bar .field > label, .filter-bar .field-label { font-size: 12px; }
 .filter-bar :where(input:not([type="checkbox"], [type="radio"]), select) { padding: 5px 8px; font-size: 14px; }
+.filter-bar :where(select) { padding-right: 32px; } /* ruang panah <select>, lihat :where(select) */
 .filter-fields > button { padding: 4px 12px; font-size: 13px; }
 .filter-fields > #btn-reset { margin-left: auto; } /* Reset selalu di ujung kanan barisnya */
 

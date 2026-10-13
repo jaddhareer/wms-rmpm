@@ -1,9 +1,9 @@
-import { setContent, q, escapeHtml, formatNumber, binDatalistHtml, emptyRowHtml } from "../utilities/tools.js";
+import { setContent, q, escapeHtml, formatNumber, binDatalistHtml, emptyRowHtml, QTY_SAP_DECIMALS } from "../utilities/tools.js";
 import { apiFetch } from "../utilities/auth.js";
 import { toast } from "../utilities/toast.js";
 import { replaceParams } from "../utilities/router.js";
 
-// Retur: barang dari PRODUKSI/QUALITY kembali ke gudang, ke nomor pallet asalnya.
+// Retur: barang dari PRODUKSI/QUALITY/OTHER kembali ke gudang, ke nomor pallet asalnya.
 // Alur: muat dokumen OUTBOUND -> pilih pallet -> isi qty (dan bin kalau pallet sudah kosong)
 //       -> Add ke daftar -> Submit.
 
@@ -262,7 +262,7 @@ function selectLine(line){
 function previewQtySap(){
     const qty = parseFloat(q('#qty').value);
     const factor = parseFloat(selected?.conversion_factor);
-    q('#qty-sap').value = (qty > 0 && factor > 0) ? (qty * factor).toFixed(3) : '';
+    q('#qty-sap').value = (qty > 0 && factor > 0) ? (qty * factor).toFixed(QTY_SAP_DECIMALS) : '';
 }
 
 function handleAdd(){
