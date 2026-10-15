@@ -148,13 +148,16 @@ class Transactions {
     //   qty_out      = total keluar di dokumen ini
     //   qty_returned = total yang sudah diretur, dihitung dari baris RETUR dengan
     //                  reference_code = dokumen ini (bukan dari isi remark)
+    //   sap_out / sap_returned = sama, dalam qty SAP (untuk retur sebagian yang diisi dalam UoM SAP)
     //   stock_qty / stock_bin = kondisi pallet sekarang (untuk aturan bin retur)
     public function findReturnable(string $outboundCode): array {
         $sql = "SELECT t.item_code, m.description, t.exp_date, t.pallet_number,
                        GROUP_CONCAT(DISTINCT t.destination ORDER BY t.destination SEPARATOR ', ') AS destination,
                        SUM(t.qty_actual) AS qty_out,
+                       SUM(t.qty_sap)    AS sap_out,
                        m.uom_fisik, m.uom_sap,
                        COALESCE(MAX(r.qty_returned), 0) AS qty_returned,
+                       COALESCE(MAX(r.sap_returned), 0) AS sap_returned,
                        MAX(s.qty_actual) AS stock_qty,
                        MAX(s.bin)        AS stock_bin,
                        MAX(s.conversion_factor) AS conversion_factor,
@@ -162,7 +165,7 @@ class Transactions {
                 FROM {$this->table} t
                 JOIN material_master m ON m.item_code = t.item_code
                 LEFT JOIN (
-                    SELECT item_code, exp_date, pallet_number, SUM(qty_actual) AS qty_returned
+                    SELECT item_code, exp_date, pallet_number, SUM(qty_actual) AS qty_returned, SUM(qty_sap) AS sap_returned
                     FROM {$this->table}
                     WHERE transaction_type = 'RETUR' AND reference_code = ?
                     GROUP BY item_code, exp_date, pallet_number

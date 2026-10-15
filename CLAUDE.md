@@ -59,7 +59,7 @@ index.html   kerangka SPA
 - Respons JSON lewat `jsonResponse($data, $status)` (memanggil `exit`). Body POST dikirim sebagai JSON → baca dengan `readJsonBody()`, bukan `$_POST`. GET → `$_GET`.
 - Transaksi tulis: validasi dulu → `beginTransaction()` → langkah-langkah → `commit()`. Pelanggaran aturan bisnis dilempar sebagai `Exception`. Di `catch`: **`rollBack()` dulu, baru `jsonResponse()`** (karena jsonResponse exit).
 - Update stok anti-race: `UPDATE ... WHERE qty_actual >= :qty_check` lalu cek `rowCount() > 0`. Placeholder bernama tidak boleh dipakai dua kali dalam satu query (pakai nama berbeda, mis. `:qty_out` & `:qty_check`). `findPallet()` memakai `SELECT ... FOR UPDATE`.
-- `qty_sap` SELALU dihitung di backend lewat `calculateQtySap()` (helper.php) = `qty × conversion_factor` milik pallet, dibulatkan 4 desimal (kolom DECIMAL(15,4)). Angka dari frontend hanya untuk tampilan. Tampilan qty SAP selalu 4 desimal: `formatQtySap()` (tools.js / helper.php), Excel: `setFourDecimalColumns()`.
+- `qty_sap` SELALU dihitung di backend lewat `calculateQtySap()` (helper.php) = `qty × conversion_factor` milik pallet, dibulatkan 4 desimal (kolom DECIMAL(15,4)). Angka dari frontend hanya untuk tampilan. Pengecualian: (1) Retur yang diisi dalam UoM SAP (`input_unit: 'sap'`, untuk retur kurang dari 1 unit, mis. 10 KG dari 1 ROLL): qty SAP = angka timbang operator, qty fisik diturunkan = qty_sap / faktor (3 desimal). (2) Ambil semua sisa (Retur semua sisa, Outbound pallet habis): qty SAP = sisa qty SAP persis, supaya tidak ada selisih pembulatan. Tampilan qty SAP selalu 4 desimal: `formatQtySap()` (tools.js / helper.php), Excel: `setFourDecimalColumns()`.
 - LIMIT/OFFSET di-cast ke int lalu ditulis langsung ke SQL. Nilai lain selalu lewat placeholder.
 - Escape HTML saat DITAMPILKAN (`escapeHtml()` di JS, `e()` di PHP), bukan saat disimpan. `sanitize()` hanya trim.
 - Hati-hati: `?>` di dalam komentar `//` PHP tetap menutup tag PHP.
@@ -73,7 +73,7 @@ index.html   kerangka SPA
   - INBOUND: `source` = supplier, `destination_bin`
   - OUTBOUND: `source_bin`, `destination` = PRODUKSI / QUALITY / OTHER (OTHER = alasan lain, mis. rusak; remark wajib, dicek di frontend & Outbound.php)
   - MUTASI (Bin to Bin): `source_bin` → `destination_bin`
-  - RETUR: `source` = tujuan OUTBOUND asal (PRODUKSI / QUALITY / OTHER), `destination_bin`, `reference_code` = kode OUTBOUND asal. Barang kembali ke nomor pallet asalnya.
+  - RETUR: `source` = tujuan OUTBOUND asal (PRODUKSI / QUALITY / OTHER), `destination_bin`, `reference_code` = kode OUTBOUND asal. Barang kembali ke nomor pallet asalnya. Qty boleh diisi di kolom fisik atau SAP (yang terakhir diketik jadi acuan); batas retur dicek di satuan yang diisi (`qty_out`/`sap_out` dikurangi yang sudah diretur).
 - `users`: **tidak pernah di-DELETE** (`transactions.user_id` FK ke sini). User yang keluar → `is_active = 0`. Username tidak bisa diubah setelah dibuat. Admin tidak bisa mengubah role / menonaktifkan akun sendiri, dan harus tersisa minimal satu admin aktif (dicek dengan `FOR UPDATE` di dalam transaction).
 - Lokasi TIDAK disimpan, diturunkan dari nama bin (`Dashboard::LOCATIONS`): rak `A-`–`D-` = Gudang 40, `E-`–`F-` = Gudang 50, `FLOOR 40`, `FLOOR 50`. `STAGE` tidak dihitung okupansi.
 

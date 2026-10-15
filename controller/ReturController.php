@@ -10,6 +10,10 @@
 //   "remark": "catatan operator (opsional)",
 //   "items": [ { "item_code", "exp_date", "pallet_number", "qty_actual", "bin" }, ... ]
 // }
+//
+// Retur sebagian unit (mis. keluar 1 ROLL = 36,666 KG, kembali hanya 10 KG):
+// item boleh dikirim dalam UoM SAP -> { ..., "input_unit": "sap", "qty_sap": 10 } (qty_actual diabaikan).
+// qty SAP dicatat persis seperti yang ditimbang, qty fisik diturunkan = qty_sap / faktor pallet.
 
 header('Content-Type: application/json');
 
@@ -73,7 +77,8 @@ try {
     }
 
     // Retur yang sudah diproses di submit INI (kalau pallet sama muncul lebih dari sekali).
-    $returnedNow = [];
+    $returnedNow = [];      // qty fisik
+    $returnedSapNow = [];   // qty SAP
 
     $transactionCode = generateTxnId($conn, 'RETUR');
 
@@ -84,6 +89,8 @@ try {
         $expDate      = sanitize($item['exp_date'] ?? '');
         $palletNumber = (int) ($item['pallet_number'] ?? 0);
         $qtyActual    = (float) ($item['qty_actual'] ?? 0);
+        $inSapUnit    = ($item['input_unit'] ?? '') === 'sap';
+        $qtySapInput  = round((float) ($item['qty_sap'] ?? 0), QTY_SAP_DECIMALS);
         $binInput     = strtoupper(sanitize($item['bin'] ?? ''));
 
         $key = "$itemCode|$expDate|$palletNumber";
@@ -92,15 +99,19 @@ try {
         if (!isset($lineMap[$key])) {
             throw new Exception("Baris $row: pallet $palletNumber ($itemCode, exp $expDate) tidak ada di transaksi $referenceCode");
         }
-        if ($qtyActual <= 0) {
+        if (($inSapUnit ? $qtySapInput : $qtyActual) <= 0) {
             throw new Exception("Baris $row: quantity harus lebih dari 0");
         }
 
-        // 2. Total retur tidak boleh melebihi qty yang keluar.
+        // 2. Total retur tidak boleh melebihi qty yang keluar (dicek di satuan yang diisi operator).
         $line = $lineMap[$key];
-        $remaining = (float) $line['qty_out'] - (float) $line['qty_returned'] - ($returnedNow[$key] ?? 0);
-        if ($qtyActual > $remaining + 0.0005) {
-            throw new Exception("Baris $row: retur pallet $palletNumber maksimal " . round($remaining, 3) . " (keluar {$line['qty_out']}, sudah diretur {$line['qty_returned']})");
+        $remaining    = round((float) $line['qty_out'] - (float) $line['qty_returned'] - ($returnedNow[$key] ?? 0), 3);
+        $remainingSap = round((float) $line['sap_out'] - (float) $line['sap_returned'] - ($returnedSapNow[$key] ?? 0), QTY_SAP_DECIMALS);
+        if ($inSapUnit && $qtySapInput > $remainingSap + 0.00005) {
+            throw new Exception("Baris $row: retur pallet $palletNumber maksimal " . formatQtySap($remainingSap) . " {$line['uom_sap']} (keluar " . formatQtySap($line['sap_out']) . ", sudah diretur " . formatQtySap($line['sap_returned']) . ")");
+        }
+        if (!$inSapUnit && $qtyActual > $remaining + 0.0005) {
+            throw new Exception("Baris $row: retur pallet $palletNumber maksimal " . formatNumber($remaining) . " {$line['uom_fisik']} (keluar " . formatNumber($line['qty_out']) . ", sudah diretur " . formatNumber($line['qty_returned']) . ")");
         }
 
         // 3. Kondisi pallet sekarang (dikunci sampai commit).
@@ -124,8 +135,24 @@ try {
         $newBin = $palletWasEmpty ? $binInput : null;
         $finalBin = $palletWasEmpty ? $binInput : $pallet['bin'];
 
-        // qty SAP pakai faktor konversi milik pallet itu sendiri.
-        $qtySap = calculateQtySap($qtyActual, (float) $pallet['conversion_factor']);
+        // 5. Pasangan qty fisik & qty SAP. Faktor konversi = milik pallet itu sendiri.
+        $factor = (float) $pallet['conversion_factor'];
+        if ($inSapUnit) {
+            // Diisi dalam UoM SAP (hasil timbang): qty SAP dicatat apa adanya, qty fisik diturunkan.
+            // Kalau yang kembali = semua sisa, qty fisik = sisa persis (tidak ada selisih pembulatan).
+            $qtySap = $qtySapInput;
+            $isAllRemaining = abs($qtySap - $remainingSap) < 0.00005;
+            $qtyActual = $isAllRemaining ? $remaining : min(round($qtySap / $factor, 3), $remaining);
+            if ($qtyActual <= 0) {
+                throw new Exception("Baris $row: qty " . formatQtySap($qtySap) . " {$line['uom_sap']} terlalu kecil (kurang dari 0,001 {$line['uom_fisik']})");
+            }
+        } else {
+            // Diisi dalam UoM fisik: qty SAP dihitung qty x faktor, seperti Inbound/Outbound.
+            // Kalau yang kembali = semua sisa, qty SAP = sisa SAP persis, supaya total retur
+            // sama dengan total keluar walaupun retur sebelumnya diisi dalam UoM SAP.
+            $isAllRemaining = abs($qtyActual - $remaining) < 0.0005;
+            $qtySap = $isAllRemaining ? $remainingSap : min(calculateQtySap($qtyActual, $factor), $remainingSap);
+        }
 
         $stock->setQtyActual($qtyActual);
         $stock->setQtySap($qtySap);
@@ -133,7 +160,7 @@ try {
             throw new Exception("Baris $row: gagal memperbarui stok pallet $palletNumber");
         }
 
-        // 5. Ledger RETUR, dengan reference_code ke dokumen outbound asal.
+        // 6. Ledger RETUR, dengan reference_code ke dokumen outbound asal.
         $ledger = new Transactions($conn);
         $ledger->setTransactionCode($transactionCode);
         $ledger->setTransactionType('RETUR');
@@ -150,6 +177,7 @@ try {
         $ledger->save();
 
         $returnedNow[$key] = ($returnedNow[$key] ?? 0) + $qtyActual;
+        $returnedSapNow[$key] = ($returnedSapNow[$key] ?? 0) + $qtySap;
     }
 
     $conn->commit();

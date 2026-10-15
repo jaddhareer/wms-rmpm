@@ -1,4 +1,4 @@
-import { setContent, q, escapeHtml, formatNumber, binDatalistHtml, emptyRowHtml, QTY_SAP_DECIMALS } from "../utilities/tools.js";
+import { setContent, q, escapeHtml, formatNumber, formatQtySap, binDatalistHtml, emptyRowHtml, QTY_SAP_DECIMALS } from "../utilities/tools.js";
 import { apiFetch } from "../utilities/auth.js";
 import { toast } from "../utilities/toast.js";
 import { replaceParams } from "../utilities/router.js";
@@ -6,6 +6,10 @@ import { replaceParams } from "../utilities/router.js";
 // Retur: barang dari PRODUKSI/QUALITY/OTHER kembali ke gudang, ke nomor pallet asalnya.
 // Alur: muat dokumen OUTBOUND -> pilih pallet -> isi qty (dan bin kalau pallet sudah kosong)
 //       -> Add ke daftar -> Submit.
+// Qty boleh diisi di salah satu kolom: Qty Retur (UoM fisik, mis. ROLL) atau Qty SAP (mis. KG).
+// Yang terakhir diketik jadi acuan, kolom satunya dihitung otomatis. Untuk retur kurang dari
+// 1 unit (keluar 1 ROLL = 36,666 KG, kembali 10 KG), isi Qty SAP = 10: qty SAP tercatat persis
+// 10 KG dan qty fisik diturunkan oleh server (10 / 36,666 = 0,273 ROLL).
 
 const API = 'controller/ReturController.php';
 
@@ -14,6 +18,7 @@ let refCode = '';        // kode dokumen outbound yang sedang dimuat
 let lines = [];          // pallet-pallet dokumen itu (dari server)
 let selected = null;     // pallet yang sedang dipilih di form
 let cart = [];           // pallet yang sudah di-Add, belum di-submit
+let inputUnit = 'fisik'; // kolom qty yang terakhir diketik operator: 'fisik' | 'sap'
 let requestId = 0;
 
 // params datang dari router, mis. { code: 'RMPMOB26090007' } saat dibuka dari popup transaksi.
@@ -61,9 +66,10 @@ export function retur(params = {}){
                 <div class="field">
                     <label for="qty-sap">Qty SAP</label>
                     <div class="input-group">
-                        <input type="text" id="qty-sap" disabled>
+                        <input type="number" id="qty-sap" min="0" step="any" disabled>
                         <span class="unit" id="sel-uom-sap"></span>
                     </div>
+                    <small class="hint" id="qty-hint"></small>
                 </div>
                 <div class="field wide">
                     <label for="bin">Bin</label>
@@ -106,7 +112,8 @@ export function retur(params = {}){
         if (e.key === 'Enter') loadReference(q('#ref-code').value);
     });
     q('#lines-body').addEventListener('click', handlePick);
-    q('#qty').addEventListener('input', previewQtySap);
+    q('#qty').addEventListener('input', () => { inputUnit = 'fisik'; syncQty(); });
+    q('#qty-sap').addEventListener('input', () => { inputUnit = 'sap'; syncQty(); });
     q('#btn-add').addEventListener('click', handleAdd);
     q('#cart-body').addEventListener('click', handleDeleteCart);
     q('#btn-submit').addEventListener('click', handleSubmit);
@@ -129,9 +136,27 @@ function keyOf(row){
 }
 
 // Sisa yang boleh diretur untuk satu pallet, dikurangi yang sudah ada di daftar (cart).
+// Dibulatkan supaya selisih pecahan float (0.30000000000000004) tidak ikut tampil.
 function remainingOf(line){
     const inCart = cart.filter(c => keyOf(c) === keyOf(line)).reduce((sum, c) => sum + c.qty_actual, 0);
-    return Math.max(0, parseFloat(line.qty_out) - parseFloat(line.qty_returned) - inCart);
+    return Math.max(0, round(parseFloat(line.qty_out) - parseFloat(line.qty_returned) - inCart, 3));
+}
+
+// Sama, dalam qty SAP.
+function remainingSapOf(line){
+    const inCart = cart.filter(c => keyOf(c) === keyOf(line)).reduce((sum, c) => sum + c.qty_sap, 0);
+    return Math.max(0, round(parseFloat(line.sap_out) - parseFloat(line.sap_returned) - inCart, QTY_SAP_DECIMALS));
+}
+
+function round(value, decimals){
+    const factor = 10 ** decimals;
+    return Math.round(value * factor) / factor;
+}
+
+// Satu sel angka: qty fisik, dengan qty SAP di baris kedua.
+function qtyCellHtml(qty, uomFisik, qtySap, uomSap){
+    return `${formatNumber(qty)} ${escapeHtml(uomFisik)}`
+        + `<br><span class="hint">${formatQtySap(qtySap)} ${escapeHtml(uomSap)}</span>`;
 }
 
 async function loadReference(rawCode){
@@ -187,6 +212,7 @@ function renderLines(){
 
     q('#lines-body').innerHTML = lines.map((line, index) => {
         const remaining = remainingOf(line);
+        const remainingSap = remainingSapOf(line);
         const stockQty = parseFloat(line.stock_qty);
         const position = stockQty > 0
             ? `${line.stock_bin} (isi ${formatNumber(stockQty)})`
@@ -199,9 +225,9 @@ function renderLines(){
                 <td>${escapeHtml(line.exp_date)}</td>
                 <td class="num">${escapeHtml(line.pallet_number)}</td>
                 <td>${escapeHtml(line.destination)}</td>
-                <td class="num">${formatNumber(line.qty_out)} ${escapeHtml(line.uom_fisik)}</td>
-                <td class="num">${formatNumber(line.qty_returned)}</td>
-                <td class="num">${formatNumber(remaining)}</td>
+                <td class="num">${qtyCellHtml(line.qty_out, line.uom_fisik, line.sap_out, line.uom_sap)}</td>
+                <td class="num">${qtyCellHtml(line.qty_returned, line.uom_fisik, line.sap_returned, line.uom_sap)}</td>
+                <td class="num">${qtyCellHtml(remaining, line.uom_fisik, remainingSap, line.uom_sap)}</td>
                 <td>${escapeHtml(position)}</td>
                 <td>
                     ${remaining > 0
@@ -228,17 +254,20 @@ function selectLine(line){
 
     const ready = Boolean(line);
     q('#qty').disabled = !ready;
+    q('#qty-sap').disabled = !ready;
     q('#btn-add').disabled = !ready;
+    inputUnit = 'fisik';
 
     if (!line) {
         q('#sel-info').textContent = 'Belum ada. Klik Pilih pada tabel pallet di atas.';
         q('#qty').value = '';
+        q('#qty-sap').value = '';
+        q('#qty-hint').textContent = '';
         q('#bin').value = '';
         q('#bin').disabled = true;
         q('#bin-hint').textContent = '';
         q('#sel-uom').textContent = '';
         q('#sel-uom-sap').textContent = '';
-        previewQtySap();
         return;
     }
 
@@ -254,22 +283,54 @@ function selectLine(line){
         ? 'Pallet sudah kosong: isi bin tempat barang retur ditaruh.'
         : 'Pallet masih ada isinya: barang retur masuk ke pallet yang sama, bin tetap.';
 
-    previewQtySap();
+    syncQty();
     q('#qty').focus();
 }
 
-// Hanya untuk ditampilkan. Server menghitung ulang dengan faktor pallet yang sama.
-function previewQtySap(){
-    const qty = parseFloat(q('#qty').value);
-    const factor = parseFloat(selected?.conversion_factor);
-    q('#qty-sap').value = (qty > 0 && factor > 0) ? (qty * factor).toFixed(QTY_SAP_DECIMALS) : '';
+// Isi kolom qty yang TIDAK diketik dari kolom yang diketik (inputUnit). Hanya untuk ditampilkan:
+// server menghitung ulang dengan aturan yang sama (lihat ReturController.php).
+// Retur semua sisa -> kedua angka = sisa persis, tanpa selisih pembulatan.
+function syncQty(){
+    if (!selected) return;
+
+    const factor = parseFloat(selected.conversion_factor);
+    const remaining = remainingOf(selected);
+    const remainingSap = remainingSapOf(selected);
+    const uomFisik = selected.uom_fisik;
+    const uomSap = selected.uom_sap;
+
+    if (inputUnit === 'sap') {
+        const qtySap = parseFloat(q('#qty-sap').value);
+        let qty = '';
+        if (qtySap > 0 && factor > 0) {
+            qty = Math.abs(qtySap - remainingSap) < 0.00005
+                ? remaining
+                : Math.min(round(qtySap / factor, 3), remaining);
+        }
+        q('#qty').value = qty;
+        q('#qty-hint').textContent = `Diisi dalam ${uomSap}: qty SAP dicatat persis, qty ${uomFisik} dihitung otomatis`
+            + ` (${uomSap} / ${formatNumber(factor)}).`;
+    } else {
+        const qty = parseFloat(q('#qty').value);
+        let qtySap = '';
+        if (qty > 0 && factor > 0) {
+            qtySap = Math.abs(qty - remaining) < 0.0005
+                ? remainingSap
+                : Math.min(round(qty * factor, QTY_SAP_DECIMALS), remainingSap);
+            qtySap = qtySap.toFixed(QTY_SAP_DECIMALS);
+        }
+        q('#qty-sap').value = qtySap;
+        q('#qty-hint').textContent = `Retur kurang dari 1 ${uomFisik}? Isi kolom Qty SAP (${uomSap}) dengan hasil timbang.`;
+    }
 }
 
 function handleAdd(){
     if (!selected) return;
 
     const qty = parseFloat(q('#qty').value);
+    const qtySap = parseFloat(q('#qty-sap').value);
     const remaining = remainingOf(selected);
+    const remainingSap = remainingSapOf(selected);
     const palletEmpty = parseFloat(selected.stock_qty) <= 0;
     const bin = q('#bin').value.trim().toUpperCase();
 
@@ -277,13 +338,28 @@ function handleAdd(){
         toast('Pallet ini sudah ada di daftar. Hapus dulu kalau mau mengubah qty.', 'warning');
         return;
     }
-    if (!(qty > 0)) {
-        toast('Qty retur harus lebih dari 0', 'warning');
-        return;
-    }
-    if (qty > remaining + 0.0005) {
-        toast(`Qty retur maksimal ${formatNumber(remaining)}`, 'warning');
-        return;
+    if (inputUnit === 'sap') {
+        if (!(qtySap > 0)) {
+            toast('Qty SAP retur harus lebih dari 0', 'warning');
+            return;
+        }
+        if (qtySap > remainingSap + 0.00005) {
+            toast(`Qty SAP retur maksimal ${formatQtySap(remainingSap)} ${selected.uom_sap}`, 'warning');
+            return;
+        }
+        if (!(qty > 0)) {
+            toast(`Qty terlalu kecil (kurang dari 0,001 ${selected.uom_fisik})`, 'warning');
+            return;
+        }
+    } else {
+        if (!(qty > 0)) {
+            toast('Qty retur harus lebih dari 0', 'warning');
+            return;
+        }
+        if (qty > remaining + 0.0005) {
+            toast(`Qty retur maksimal ${formatNumber(remaining)} ${selected.uom_fisik}`, 'warning');
+            return;
+        }
     }
     if (palletEmpty && !bin) {
         toast('Pallet sudah kosong, bin wajib diisi', 'warning');
@@ -295,9 +371,11 @@ function handleAdd(){
         description:   selected.description,
         exp_date:      selected.exp_date,
         pallet_number: Number(selected.pallet_number),
-        qty_actual:    qty,
+        qty_actual:    qty,       // kalau input_unit 'sap' ini perkiraan, angka final dihitung server
         uom_fisik:     selected.uom_fisik,
-        qty_sap:       q('#qty-sap').value,
+        qty_sap:       qtySap,
+        uom_sap:       selected.uom_sap,
+        input_unit:    inputUnit,
         bin:           palletEmpty ? bin : selected.stock_bin,
     });
 
@@ -322,7 +400,7 @@ function renderCart(){
             <td class="num">${escapeHtml(row.pallet_number)}</td>
             <td class="num">${formatNumber(row.qty_actual)}</td>
             <td>${escapeHtml(row.uom_fisik)}</td>
-            <td class="num">${escapeHtml(row.qty_sap)}</td>
+            <td class="num">${formatQtySap(row.qty_sap)} ${escapeHtml(row.uom_sap)}</td>
             <td>${escapeHtml(row.bin)}</td>
             <td><button type="button" class="btn-delete btn-sm btn-danger" data-index="${index}" data-icon="trash">Hapus</button></td>
         </tr>
@@ -356,6 +434,8 @@ async function handleSubmit(){
             exp_date: c.exp_date,
             pallet_number: c.pallet_number,
             qty_actual: c.qty_actual,
+            qty_sap: c.qty_sap,
+            input_unit: c.input_unit,
             bin: c.bin,
         })),
     };

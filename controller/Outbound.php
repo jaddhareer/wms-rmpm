@@ -60,7 +60,14 @@ try {
         }
 
         // Pakai faktor milik pallet ini (yang dicatat saat inbound), bukan default master.
-        $qtySap = calculateQtySap($qtyActual, (float) $pallet['conversion_factor']);
+        // Kalau pallet diambil habis, qty SAP = sisa qty SAP pallet persis. Isi pallet bisa
+        // berasal dari retur yang diisi dalam UoM SAP (mis. 10 KG = 0,273 ROLL), sehingga
+        // qty x faktor tidak selalu sama dengan qty SAP yang tersimpan; tanpa ini stok
+        // bisa tersisa qty fisik 0 tapi qty SAP plus/minus sedikit.
+        $takesAll = abs($qtyActual - (float) $pallet['qty_actual']) < 0.0005;
+        $qtySap = $takesAll
+            ? (float) $pallet['qty_sap']
+            : calculateQtySap($qtyActual, (float) $pallet['conversion_factor']);
 
         $stock->setQtyActual($qtyActual);
         $stock->setQtySap($qtySap);

@@ -272,6 +272,13 @@ function calculateQtySap(){
     const qty = parseFloat(q('#qty-fisik').value);
     const factor = parseFloat(selectedPallet?.conversion_factor);
 
+    // Ambil pallet habis -> sisa qty SAP pallet persis (sama dengan aturan di Outbound.php).
+    const takesAll = selectedPallet && Math.abs(qty - parseFloat(selectedPallet.qty_actual)) < 0.0005;
+    if (takesAll) {
+        q('#qty-sap').value = parseFloat(selectedPallet.qty_sap).toFixed(QTY_SAP_DECIMALS);
+        return;
+    }
+
     q('#qty-sap').value = (qty > 0 && factor > 0) ? (qty * factor).toFixed(QTY_SAP_DECIMALS) : '';
 }
 
