@@ -19,7 +19,7 @@ Dijalankan lokal di XAMPP (`C:\xampp`): Apache, PHP 8.2, MariaDB 10.4.
 - Data awal: jalankan `material_master_insert.sql`, dan harus ada minimal satu user admin aktif di tabel `users` (sekarang `admin`, id 1). User lain dibuat lewat menu User.
 - User uji yang sudah ada (nonaktif): `uji_operator` (id 3), `uji_ui` (id 4). Untuk menguji role operator, aktifkan lagi lewat menu User lalu reset password-nya.
 - Buka lewat `http://localhost/wms-rmpm/`, lalu login.
-- File sesi login disimpan di `C:\xampp\tmp\wms-rmpm` (folder sendiri, lihat `startSession()` di `helper.php`).
+- File sesi login disimpan di `C:\xampp\tmp\wms-rmpm` (folder sendiri, lihat `sessionDir()` di `helper.php`). Di hosting cPanel folder sesi bawaan milik root, jadi otomatis pindah ke `<temp sistem>/wms-rmpm`.
 
 ## Verifikasi (wajib sebelum menyerahkan kode)
 
@@ -66,7 +66,7 @@ index.html   kerangka SPA
 
 ## Model data
 
-- `stock`: posisi sekarang, **satu baris = satu pallet fisik**. Identitas pallet = `item_code + exp_date + pallet_number` (bin BUKAN identitas, bin hanya lokasi). Pallet yang habis **tidak dihapus**, dibiarkan qty 0. `pallet_number` = MAX+1 per item+exp (aman karena baris tidak pernah dihapus). `conversion_factor` disimpan per pallet: default dari material master, boleh diubah operator saat Inbound.
+- `stock`: posisi sekarang, **satu baris = satu pallet fisik**. Identitas pallet = `item_code + exp_date + pallet_number` (bin BUKAN identitas, bin hanya lokasi). Pallet yang habis **tidak dihapus**, dibiarkan qty 0. `pallet_number` = MAX+1 per item+exp (aman karena baris tidak pernah dihapus). `conversion_factor` disimpan per pallet: default dari material master, boleh diubah operator saat Inbound. `supplier` diisi saat Inbound (= `source` di ledger INBOUND), tidak pernah berubah; tampil di popup detail Stock Overview, bisa difilter, ikut di export.
 - `transactions`: ledger **append-only**, setiap baris snapshot lengkap (exp, pallet, qty, qty_sap, bin). Tidak pernah UPDATE/DELETE.
 - `transaction_code` = `RMPM` + `IB|OB|MT|RT` + `YYMM` + 4 digit urut. Satu kode per submit (satu dokumen, banyak baris). PK = `id`.
 - Isi kolom ledger per jenis:

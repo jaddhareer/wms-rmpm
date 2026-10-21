@@ -11,7 +11,7 @@ import { navigateTo } from "../utilities/router.js";
 const API = 'controller/StockOverviewController.php';
 
 function emptyFilters(){
-    return { description: '', exp_from: '', exp_to: '', bin: '' };
+    return { description: '', exp_from: '', exp_to: '', bin: '', supplier: '' };
 }
 
 // Disimpan di scope modul: filter & halaman tetap ada saat operator kembali ke menu ini.
@@ -55,6 +55,10 @@ export function stock(){
                     <label for="f-bin">Bin</label>
                     <input type="text" id="f-bin" data-filter="bin" list="bin-options" value="${escapeHtml(f.bin)}">
                     ${binDatalistHtml()}
+                </div>
+                <div class="field">
+                    <label for="f-supplier">Supplier</label>
+                    <input type="text" id="f-supplier" data-filter="supplier" value="${escapeHtml(f.supplier)}">
                 </div>
                 <button type="button" id="btn-reset" data-icon="reset" title="Kosongkan semua filter">Reset</button>
             </div>
@@ -254,7 +258,7 @@ async function showLotDetail(itemCode, expDate){
                 <table>
                     <thead>
                         <tr>
-                            <th class="num">Pallet</th><th>Bin</th><th class="num">Qty</th><th>UoM</th><th class="num">Faktor</th>
+                            <th class="num">Pallet</th><th>Supplier</th><th>Bin</th><th class="num">Qty</th><th>UoM</th><th class="num">Faktor</th>
                             <th class="num">Qty SAP</th><th>UoM SAP</th><th>Remark</th><th>Last Update</th>
                             ${actions.length ? '<th></th>' : ''}
                         </tr>
@@ -263,6 +267,7 @@ async function showLotDetail(itemCode, expDate){
                         ${rows.map((r, index) => `
                             <tr>
                                 <td class="num">${escapeHtml(r.pallet_number)}</td>
+                                <td class="wrap">${escapeHtml(r.supplier)}</td>
                                 <td>${escapeHtml(r.bin)}</td>
                                 <td class="num">${formatNumber(r.qty_actual)}</td>
                                 <td>${escapeHtml(r.uom_fisik)}</td>

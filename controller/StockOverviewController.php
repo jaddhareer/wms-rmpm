@@ -24,6 +24,7 @@ try {
         'exp_from'    => sanitize($_GET['exp_from'] ?? ''),
         'exp_to'      => sanitize($_GET['exp_to'] ?? ''),
         'bin'         => sanitize($_GET['bin'] ?? ''),
+        'supplier'    => sanitize($_GET['supplier'] ?? ''),
     ];
 
     // --- Mode export ---
@@ -32,7 +33,7 @@ try {
 
         $xlsx = new XlsxWriter('Stock');
         $xlsx->setHeaders([
-            'Item Code', 'Description', 'Exp Date', 'Pallet', 'Bin',
+            'Item Code', 'Description', 'Exp Date', 'Pallet', 'Supplier', 'Bin',
             'Qty', 'UoM', 'Conversion Factor', 'Qty SAP', 'UoM SAP', 'Remark', 'Last Update',
         ]);
         $xlsx->setFourDecimalColumns(['Qty SAP']); // tampil 4 desimal, sama dengan di layar
@@ -45,6 +46,7 @@ try {
                 $r['description'],
                 $r['exp_date'],
                 (int) $r['pallet_number'],
+                $r['supplier'],
                 $r['bin'],
                 (float) $r['qty_actual'],
                 $r['uom_fisik'],

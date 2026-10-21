@@ -7,6 +7,7 @@ class Stock {
     private $itemCode;
     private $expDate;
     private $palletNumber;
+    private $supplier;
     private $bin;
     private $qtyActual;
     private $conversionFactor;
@@ -17,6 +18,7 @@ class Stock {
     public function setItemCode($itemCode)         {$this->itemCode = $itemCode;}
     public function setExpDate($expDate)           {$this->expDate = $expDate;}
     public function setPalletNumber($palletNumber) {$this->palletNumber = $palletNumber;}
+    public function setSupplier($supplier)         {$this->supplier = $supplier;}
     public function setBin($bin)                   {$this->bin = $bin;}
     public function setQtyActual($qtyActual)       {$this->qtyActual = $qtyActual;}
     public function setConversionFactor($factor)   {$this->conversionFactor = $factor;}
@@ -27,9 +29,9 @@ class Stock {
     // dan lebih baik gagal keras (lalu rollback) daripada diam-diam menimpa stok lama.
     public function stockin() {
         $query = 'INSERT INTO ' . $this->table . '
-            (item_code, exp_date, pallet_number, bin, qty_actual, conversion_factor, qty_sap, remark)
+            (item_code, exp_date, pallet_number, supplier, bin, qty_actual, conversion_factor, qty_sap, remark)
             VALUES
-            (:item_code, :exp_date, :pallet_number, :bin, :qty_actual, :conversion_factor, :qty_sap, :remark)';
+            (:item_code, :exp_date, :pallet_number, :supplier, :bin, :qty_actual, :conversion_factor, :qty_sap, :remark)';
 
         $stmt = $this->conn->prepare($query);
 
@@ -37,7 +39,8 @@ class Stock {
             ':item_code'         => $this->itemCode,
             ':exp_date'          => $this->expDate,
             ':pallet_number'     => $this->palletNumber,
-            ':bin'               => $this->bin,
+            ':supplier'          => $this->supplier,
+            ':bin'             => $this->bin,
             ':qty_actual'        => $this->qtyActual,
             ':conversion_factor' => $this->conversionFactor,
             ':qty_sap'           => $this->qtySap,
@@ -184,7 +187,7 @@ class Stock {
 
     // Kolom per pallet (untuk popup detail dan export Excel).
     private const PALLET_COLUMNS = '
-        s.item_code, m.description, s.exp_date, s.pallet_number, s.bin,
+        s.item_code, m.description, s.exp_date, s.pallet_number, s.supplier, s.bin,
         s.qty_actual, m.uom_fisik, s.conversion_factor, s.qty_sap, m.uom_sap,
         s.remark, s.updated_at';
 
@@ -299,6 +302,12 @@ class Stock {
         if (($filters['bin'] ?? '') !== '') {
             $conditions[] = 's.bin LIKE ?';
             $params[] = '%' . $filters['bin'] . '%';
+        }
+
+        // Supplier: cocok sebagian, mis. "indah" untuk "PT. Indah Sedikit".
+        if (($filters['supplier'] ?? '') !== '') {
+            $conditions[] = 's.supplier LIKE ?';
+            $params[] = '%' . $filters['supplier'] . '%';
         }
 
         return ['WHERE ' . implode(' AND ', $conditions), $params];

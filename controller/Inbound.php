@@ -63,6 +63,7 @@ try {
         $stock->setItemCode($itemCode);
         $stock->setExpDate($expDate);
         $stock->setPalletNumber($palletNumber);
+        $stock->setSupplier($source);
         $stock->setBin($bin);
         $stock->setQtyActual($qtyActual);
         $stock->setConversionFactor($conversionFactor);

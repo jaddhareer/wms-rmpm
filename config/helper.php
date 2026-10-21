@@ -145,6 +145,41 @@ function canAccess(string $role, string $page): bool {
     return in_array($page, ROLE_PAGES[$role] ?? [], true);
 }
 
+// Folder file sesi milik aplikasi ini (subfolder "wms-rmpm"), atau null = pakai folder
+// sesi bawaan PHP.
+//
+// Kenapa folder sendiri: folder sesi bawaan dipakai bersama aplikasi lain (phpMyAdmin di
+// XAMPP, akun lain / cron pembersih di hosting). Yang membersihkan folder itu memakai
+// gc_maxlifetime MEREKA (default 24 menit), jadi sesi 8 jam kita bisa ikut terhapus.
+// Di folder sendiri, hanya aplikasi ini yang membersihkan.
+//
+// Dicoba berurutan, dipakai yang pertama bisa ditulisi:
+//   1. <session.save_path>/wms-rmpm  -> XAMPP: C:\xampp\tmp\wms-rmpm
+//   2. <folder temp sistem>/wms-rmpm -> hosting cPanel: folder sesinya milik root
+//      (/var/cpanel/php/sessions/...), kita tidak boleh membuat subfolder di sana
+// Semua gagal -> null: sesi tetap jalan di folder bawaan, hanya saja bisa habis lebih
+// cepat dari 8 jam. Lebih baik daripada session_start() gagal dan tidak bisa login sama sekali.
+function sessionDir(): ?string {
+    $paths = explode(';', (string) ini_get('session.save_path')); // formatnya bisa "N;path"
+    $bases = [end($paths), sys_get_temp_dir()];
+
+    foreach ($bases as $base) {
+        if ($base === false || $base === '') {
+            continue;
+        }
+        $dir = rtrim($base, '/\\') . DIRECTORY_SEPARATOR . 'wms-rmpm';
+        if (!is_dir($dir)) {
+            // @: tidak punya izin -> lanjut ke kandidat berikutnya. Juga dua request
+            // bersamaan bisa sama-sama mencoba membuatnya.
+            @mkdir($dir, 0700, true);
+        }
+        if (is_dir($dir) && is_writable($dir)) {
+            return $dir;
+        }
+    }
+    return null;
+}
+
 // Mulai (atau lanjutkan) sesi PHP dengan pengaturan aplikasi ini.
 // Aman dipanggil berkali-kali dalam satu request, termasuk setelah session_write_close()
 // (mis. requireLogin() menutup sesi, lalu ganti password membukanya lagi).
@@ -157,7 +192,7 @@ function startSession(): void {
     }
 
     // Pengaturan cukup sekali per request. Kalau diulang, ini_get('session.save_path') di
-    // bawah sudah berisi folder wms-rmpm, lalu ditambah "\wms-rmpm" lagi -> sesi tersimpan
+    // sessionDir() sudah berisi folder wms-rmpm, lalu ditambah "\wms-rmpm" lagi -> sesi tersimpan
     // di folder yang salah dan user mendadak ter-logout.
     if ($configured) {
         session_start();
@@ -165,17 +200,10 @@ function startSession(): void {
     }
     $configured = true;
 
-    // File sesi disimpan di folder sendiri, mis. C:\xampp\tmp\wms-rmpm.
-    // Kenapa tidak langsung di C:\xampp\tmp: folder itu dipakai bersama aplikasi lain
-    // (phpMyAdmin). PHP sesekali menghapus file sesi yang lebih tua dari gc_maxlifetime
-    // milik script yang SEDANG jalan (default 24 menit), jadi sesi 8 jam kita bisa ikut
-    // terhapus oleh aplikasi lain. Di folder sendiri, hanya aplikasi ini yang membersihkan.
-    $paths = explode(';', (string) ini_get('session.save_path')); // formatnya bisa "N;path"
-    $dir = rtrim(end($paths) ?: sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR . 'wms-rmpm';
-    if (!is_dir($dir)) {
-        @mkdir($dir, 0700, true); // @: dua request bersamaan bisa sama-sama mencoba membuatnya
+    $dir = sessionDir();
+    if ($dir !== null) {
+        session_save_path($dir);
     }
-    session_save_path($dir);
 
     ini_set('session.gc_maxlifetime', (string) SESSION_IDLE_SECONDS);
     ini_set('session.use_strict_mode', '1'); // tolak ID sesi karangan yang tidak pernah dibuat server

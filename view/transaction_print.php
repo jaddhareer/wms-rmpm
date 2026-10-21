@@ -11,6 +11,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <!-- Judul tab = nama file default saat "Save as PDF" -->
     <title><?= e($code) ?></title>
+    <link rel="icon" type="image/jpeg" href="../public/icon.jpg">
     <!-- Ikon SVG yang sama dengan aplikasi (data-icon="...") -->
     <link rel="stylesheet" href="../public/icons.css">
     <style>

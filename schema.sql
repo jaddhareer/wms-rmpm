@@ -43,12 +43,19 @@ CREATE TABLE IF NOT EXISTS material_master (
 -- yang kolomnya masih DECIMAL(14,3) cukup dilebarkan, datanya tidak berubah:
 --   ALTER TABLE stock        MODIFY qty_sap DECIMAL(15,4) NOT NULL;
 --   ALTER TABLE transactions MODIFY qty_sap DECIMAL(15,4) NOT NULL;
+-- Database lama yang belum punya kolom supplier: tambahkan, lalu isi dari ledger INBOUND
+-- (satu baris INBOUND = satu pallet, jadi supplier tiap pallet bisa diambil dari sana):
+--   ALTER TABLE stock ADD COLUMN supplier VARCHAR(100) NULL AFTER pallet_number;
+--   UPDATE stock s JOIN transactions t ON t.transaction_type = 'INBOUND'
+--      AND t.item_code = s.item_code AND t.exp_date = s.exp_date AND t.pallet_number = s.pallet_number
+--      SET s.supplier = t.source WHERE s.supplier IS NULL;
 CREATE TABLE stock (
     id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     item_code     VARCHAR(20)   NOT NULL,
     exp_date      DATE          NOT NULL,
     pallet_number INT UNSIGNED  NOT NULL,
-    bin           VARCHAR(20)   NOT NULL,
+    supplier      VARCHAR(100)  NULL,         -- diisi saat Inbound, tidak berubah (Retur kembali ke pallet asal)
+    bin          VARCHAR(20)   NOT NULL,
     qty_actual    DECIMAL(14,3) NOT NULL,
     conversion_factor DECIMAL(12,4) NOT NULL, -- faktor pallet ini (bisa beda dari default material master)
     qty_sap       DECIMAL(15,4) NOT NULL,
