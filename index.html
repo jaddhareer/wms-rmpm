@@ -20,6 +20,36 @@
     <!-- Chart.js (disimpan lokal, tidak butuh internet). Dimuat sebagai script biasa,
          jadi tersedia sebagai variabel global "Chart" untuk modul-modul di bawahnya. -->
     <script src="public/vendor/chart.umd.min.js"></script>
-    <script type="module" src="public/main.js"></script>
+    <!-- Memuat aplikasi (public/main.js). Kalau gagal, penyebab paling umum: HP memakai campuran
+         file baru dan file lama dari cache (mis. main.js baru meminta fungsi yang belum ada di
+         auth.js lama), sehingga halaman kosong. Pemulihan: semua file JS/CSS yang tadi dimuat
+         diambil ulang dari server, lalu halaman dimuat ulang. Hanya SEKALI per tab, supaya tidak
+         berputar terus kalau penyebabnya lain (mis. server mati); setelah itu pesan error tampil. -->
+    <script type="module">
+        const RETRY_KEY = 'wms-rmpm.cache-retry';
+
+        try {
+            await import('./public/main.js');
+            try { sessionStorage.removeItem(RETRY_KEY); } catch {}
+        } catch (err) {
+            let retried = true;
+            try {
+                retried = sessionStorage.getItem(RETRY_KEY) === '1';
+                sessionStorage.setItem(RETRY_KEY, '1');
+            } catch {}
+
+            if (retried) {
+                document.getElementById('app').textContent = 'Aplikasi gagal dimuat: ' + err.message + ' Coba muat ulang halaman.';
+            } else {
+                // Daftar file diambil dari catatan browser sendiri (Resource Timing), jadi tidak
+                // perlu daftar manual. cache: 'reload' = abaikan cache, ambil dari server, simpan ulang.
+                const files = performance.getEntriesByType('resource')
+                    .map(entry => entry.name)
+                    .filter(url => url.startsWith(location.origin) && /\.(js|css)$/.test(new URL(url).pathname));
+                await Promise.all(files.map(url => fetch(url, { cache: 'reload' }).catch(() => {})));
+                location.reload();
+            }
+        }
+    </script>
 </body>
 </html>

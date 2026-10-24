@@ -7,6 +7,10 @@ date_default_timezone_set('Asia/Jakarta');
 require_once __DIR__ . '/database.php';
 require_once __DIR__ . '/helper.php';
 
+// Setiap respons membawa versi tampilan, supaya HP yang masih membuka versi lama tahu
+// harus memuat ulang (lihat appVersion() di helper.php).
+header('X-App-Version: ' . appVersion());
+
 require_once dirname(__DIR__) . '/library/XlsxWriter.php';
 
 require_once dirname(__DIR__) . '/model/Stock.php';

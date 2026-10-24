@@ -1,0 +1,17 @@
+# Supaya HP selalu memakai tampilan terbaru setelah aplikasi diperbarui.
+#
+# Tanpa header ini Apache tidak memberi aturan cache, jadi browser menebak sendiri berapa lama
+# file JS/CSS boleh dipakai dari cache (bisa berjam-jam sampai berhari-hari) dan HP tetap
+# menjalankan kode lama walaupun halaman dimuat ulang.
+#
+# "no-cache" BUKAN berarti tidak disimpan: file tetap disimpan di HP, tapi setiap kali dipakai
+# browser bertanya dulu ke server (pakai ETag). Kalau file tidak berubah, server menjawab
+# 304 tanpa isi, jadi tetap ringan.
+#
+# Tab yang dibiarkan terbuka (tidak dimuat ulang) ditangani terpisah: lihat appVersion()
+# di config/helper.php dan onNewVersion() di public/utilities/auth.js.
+<IfModule mod_headers.c>
+    <FilesMatch "\.(html|js|css)$">
+        Header set Cache-Control "no-cache"
+    </FilesMatch>
+</IfModule>

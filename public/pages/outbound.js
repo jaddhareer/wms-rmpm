@@ -4,12 +4,18 @@ import { toast } from "../utilities/toast.js";
 import { openPopup, closePopup, onRowPick } from "../utilities/popups.js";
 import { materialAutocomplete, ITEM_CODE_PATTERN } from "../utilities/materialAutocomplete.js";
 import { replaceParams } from "../utilities/router.js";
+import { scanButtonHtml } from "../utilities/scanner.js";
 
 // Pallet yang sudah di-Add tapi belum di-submit.
 let state = [];
 
 // Pallet yang sedang dipilih di form (satu baris dari StockController).
 let selectedPallet = null;
+
+// Masih ada pallet yang belum di-Submit? (lihat hasUnsubmitted di Inbound.js)
+export function hasUnsubmitted(){
+    return state.length > 0;
+}
 
 // params dari router. Dibuka dari popup Stock Overview -> { item, exp, pallet }:
 // pallet itu langsung dipilih di form.
@@ -35,6 +41,7 @@ export function outbound(params = {}){
                     <label for="item-code">Item Code</label>
                     <div class="input-group">
                         <input type="text" id="item-code">
+                        ${scanButtonHtml('item-code', 'item')}
                         <button type="button" id="btn-choose" data-icon="list">Pilih Pallet</button>
                     </div>
                 </div>

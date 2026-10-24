@@ -15,6 +15,32 @@ function jsonResponse(array $data, int $status = 200): void {
     exit;
 }
 
+// Versi tampilan (frontend) = sidik jari index.html + semua file di public/ (nama, waktu ubah,
+// ukuran). Berubah sendiri setiap ada file tampilan yang diubah, ditambah, atau dihapus, jadi
+// tidak ada nomor versi yang perlu dinaikkan manual. Perubahan file PHP saja tidak mengubahnya
+// (HP tidak perlu memuat ulang untuk itu).
+// Dikirim di setiap respons sebagai header X-App-Version (bootstrap.php). Tab yang masih
+// menjalankan versi lama mendeteksinya lewat onNewVersion() di public/utilities/auth.js.
+function appVersion(): string {
+    $root = dirname(__DIR__);
+    $files = [$root . '/index.html'];
+
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($root . '/public', FilesystemIterator::SKIP_DOTS)
+    );
+    foreach ($iterator as $file) {
+        $files[] = $file->getPathname();
+    }
+    sort($files);
+
+    $fingerprint = '';
+    foreach ($files as $path) {
+        $fingerprint .= substr($path, strlen($root)) . ':' . filemtime($path) . ':' . filesize($path) . "\n";
+    }
+
+    return substr(md5($fingerprint), 0, 12);
+}
+
 // Baca body request berformat JSON (dikirim fetch dengan JSON.stringify).
 // Selalu mengembalikan array, supaya pemanggil tidak perlu cek null.
 function readJsonBody(): array {

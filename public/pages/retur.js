@@ -2,6 +2,7 @@ import { setContent, q, escapeHtml, formatNumber, formatQtySap, binDatalistHtml,
 import { apiFetch } from "../utilities/auth.js";
 import { toast } from "../utilities/toast.js";
 import { replaceParams } from "../utilities/router.js";
+import { binButtonsHtml } from "../utilities/binPicker.js";
 
 // Retur: barang dari PRODUKSI/QUALITY/OTHER kembali ke gudang, ke nomor pallet asalnya.
 // Alur: muat dokumen OUTBOUND -> pilih pallet -> isi qty (dan bin kalau pallet sudah kosong)
@@ -20,6 +21,11 @@ let selected = null;     // pallet yang sedang dipilih di form
 let cart = [];           // pallet yang sudah di-Add, belum di-submit
 let inputUnit = 'fisik'; // kolom qty yang terakhir diketik operator: 'fisik' | 'sap'
 let requestId = 0;
+
+// Masih ada pallet di Daftar Retur yang belum di-Submit? (lihat hasUnsubmitted di Inbound.js)
+export function hasUnsubmitted(){
+    return cart.length > 0;
+}
 
 // params datang dari router, mis. { code: 'RMPMOB26090007' } saat dibuka dari popup transaksi.
 export function retur(params = {}){
@@ -73,7 +79,10 @@ export function retur(params = {}){
                 </div>
                 <div class="field wide">
                     <label for="bin">Bin</label>
-                    <input type="text" id="bin" list="bin-options" disabled>${binDatalistHtml()}
+                    <div class="input-group">
+                        <input type="text" id="bin" list="bin-options" disabled>
+                        ${binButtonsHtml('bin')}
+                    </div>${binDatalistHtml()}
                     <small class="hint" id="bin-hint"></small>
                 </div>
             </div>

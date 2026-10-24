@@ -70,6 +70,14 @@ export async function fetchPallet(itemCode, expDate, palletNumber){
 
     return data.find(p => p.exp_date === expDate && Number(p.pallet_number) === Number(palletNumber)) ?? null;
 }
+// Isi input dari kode (hasil scan kamera, popup Pilih Bin) lalu kirim event 'input', supaya
+// listener halaman jalan seperti saat operator mengetik (mis. Bin to Bin langsung mencari
+// pallet di bin itu). bubbles: true = listener di elemen induk (filter Stock Overview) ikut menangkap.
+export function setInputValue(input, value){
+    input.value = value;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
 // Saran bin yang muncul di semua input bin (lewat <datalist>).
 // Ubah di SATU tempat ini kalau penulisan bin floor di lapangan berbeda.
 export const BIN_SUGGESTIONS = ['FLOOR 40', 'FLOOR 50', 'STAGE'];

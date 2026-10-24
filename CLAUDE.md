@@ -2,7 +2,7 @@
 
 WMS internal untuk Raw Material & Packaging Material (RMPM) di gudang LSN.
 Stack: OOP PHP (tanpa framework, tanpa Composer) + SPA vanilla JavaScript (ES Modules, tanpa build) + PDO MySQL/MariaDB.
-Dijalankan lokal di XAMPP (`C:\xampp`): Apache, PHP 8.2, MariaDB 10.4.
+Dijalankan lokal di XAMPP (`C:\xampp`): Apache, PHP 8.5, MariaDB 10.4. PHP 8.5 dipasang manual: `C:\xampp\php\php.ini` dibuat dari `php.ini-development` (perubahannya dicatat di kepala file), dan DLL OpenSSL/libssh2/nghttp2 di `apache\bin` disamakan dengan versi PHP.
 
 ## Cara kerja dengan Hariri (pemilik project)
 
@@ -85,10 +85,16 @@ index.html   kerangka SPA
 - Router: `public/utilities/router.js`, URL hash dengan parameter (mis. `#retur?code=RMPMOB...`; `#outbound` / `#bintobin?item=..&exp=..&pallet=..` dari popup Stock Overview = isi otomatis sekali pakai, URL lalu dibersihkan dengan `replaceParams`). Halaman memanggil `navigateTo()` dari router, bukan dari main.js (menghindari import melingkar).
 - **Path fetch selalu relatif**: `controller/Xxx.php`, JANGAN `/wms-rmpm/controller/...` (supaya tidak terikat nama folder/host).
 - **Request ke controller memakai `apiFetch()` dari `utilities/auth.js`, bukan `fetch()` langsung.** Kalau server membalas 401, `apiFetch` membuka popup login ulang lalu mengirim ulang request yang sama (isi form tidak hilang). Hanya `auth.js` sendiri yang memakai `fetch()` (login/logout/me). `auth.js` tidak boleh meng-import apa pun dari project (tools.js & users.js meng-import auth.js).
+- **Pembaruan aplikasi di HP** (tanpa build, tanpa nomor versi manual):
+  - `.htaccess` mengirim `Cache-Control: no-cache` untuk html/js/css: HP tetap menyimpan file, tapi selalu bertanya ke server (304 kalau sama).
+  - Setiap respons PHP membawa header `X-App-Version` = `appVersion()` (helper.php, sidik jari `index.html` + `public/`; perubahan PHP saja tidak dihitung). `request()` di auth.js membandingkannya dengan versi saat halaman dibuka.
+  - Versi baru → `main.js` memuat ulang otomatis saat pindah menu atau saat operator kembali ke aplikasi, KECUALI ada daftar yang belum di-Submit (atau, saat kembali ke aplikasi, ada isian form yang sudah diketik); selama itu tampil banner + tombol Muat ulang (minta konfirmasi kalau ada daftar). Halaman baru yang punya daftar sementara wajib `export function hasUnsubmitted()` dan didaftarkan di `hasUnsubmittedList()` (main.js).
+  - `index.html` memuat main.js lewat `import()`: kalau gagal (campuran file lama/baru dari cache), semua file JS/CSS diambil ulang lalu halaman dimuat ulang, sekali per tab.
 - Menu navbar digambar dari `MENU_GROUPS` di `main.js`, disaring `canOpen(page)` (daftar `pages` dari server saat login). Menu baru: tambahkan di `MENU_GROUPS` DAN di `ROLE_PAGES` (helper.php). Menyembunyikan menu hanya tampilan; penjaganya `requireLogin('menu')` di controller.
 - Item code = 9 digit angka → pakai `ITEM_CODE_PATTERN` dari `utilities/materialAutocomplete.js` (bukan `length === 9`). Input item code di Inbound/Outbound/Bin to Bin memakai `materialAutocomplete()` (ketik deskripsi → pilih → input diganti item code). Outbound & Bin to Bin hanya menyarankan material yang ada stoknya.
 - Bin to Bin: source bin otomatis dicari saat panjangnya 9 karakter (scan QR rak). Ini disengaja, pallet di floor dicari lewat scan item code.
-- Library JS disimpan lokal di `public/vendor/` (Chart.js, signature_pad). Jangan pakai CDN, gudang tidak selalu ada internet.
+- Tombol di samping input (di dalam `.input-group`): `scanButtonHtml(id, 'item'|'bin')` (`utilities/scanner.js`, scan kamera) dan `binButtonsHtml(id)` (`utilities/binPicker.js`, popup Pilih Bin `A-01-A-01` + tombol scan). Kliknya ditangani satu listener global (`initScanButtons` / `initBinPickerButtons` di main.js); hasilnya masuk lewat `setInputValue()` (tools.js) yang memicu event `input` halaman. Susunan rak (baris A–F, nomor 1–17, level A–C, posisi 1–3) ada di atas binPicker.js. Kamera langsung butuh HTTPS atau localhost; di http biasa tombol scan otomatis memakai foto (`<input type="file" capture>`). Semua label gudang berupa QR code: scanner hanya membaca QR (`FORMATS`), kotak bidik persegi. Kamera bisa dipilih di popup scan; pilihan disimpan per HP di `localStorage` (`wms-rmpm.scan-camera`).
+- Library JS disimpan lokal di `public/vendor/` (Chart.js, signature_pad, html5-qrcode untuk scan QR, dimuat saat scan pertama). Jangan pakai CDN, gudang tidak selalu ada internet.
 
 ## Styling
 

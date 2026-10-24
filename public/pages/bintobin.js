@@ -4,6 +4,8 @@ import { toast } from "../utilities/toast.js";
 import { openPopup, closePopup, onRowPick } from "../utilities/popups.js";
 import { materialAutocomplete, ITEM_CODE_PATTERN } from "../utilities/materialAutocomplete.js";
 import { replaceParams } from "../utilities/router.js";
+import { scanButtonHtml } from "../utilities/scanner.js";
+import { binButtonsHtml } from "../utilities/binPicker.js";
 
 // params dari router. Dibuka dari popup Stock Overview -> { item, exp, pallet }:
 // form langsung terisi pallet itu, operator tinggal mengisi Target Bin.
@@ -15,16 +17,25 @@ export function bintobin(params = {}){
             <div class="form-grid">
                 <div class="field">
                     <label for="source-bin">Source Bin</label>
-                    <input type="text" id="source-bin" placeholder="A-01-A-01">
+                    <div class="input-group">
+                        <input type="text" id="source-bin" placeholder="A-01-A-01">
+                        ${binButtonsHtml('source-bin')}
+                    </div>
                 </div>
                 <div class="field">
                     <label for="target-bin">Target Bin</label>
-                    <input type="text" id="target-bin" list="bin-options" placeholder="A-01-A-02">${binDatalistHtml()}
+                    <div class="input-group">
+                        <input type="text" id="target-bin" list="bin-options" placeholder="A-01-A-02">
+                        ${binButtonsHtml('target-bin')}
+                    </div>${binDatalistHtml()}
                 </div>
                 <hr>
                 <div class="field">
                     <label for="item-code">Item Code</label>
-                    <input type="text" id="item-code">
+                    <div class="input-group">
+                        <input type="text" id="item-code">
+                        ${scanButtonHtml('item-code', 'item')}
+                    </div>
                 </div>
                 <div class="field">
                     <label for="exp-date">Expired Date</label>

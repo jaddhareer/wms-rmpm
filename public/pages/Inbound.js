@@ -2,6 +2,8 @@ import { setContent, q, escapeHtml, binDatalistHtml, emptyRowHtml, formatNumber,
 import { apiFetch } from "../utilities/auth.js";
 import { toast } from "../utilities/toast.js";
 import { materialAutocomplete, ITEM_CODE_PATTERN } from "../utilities/materialAutocomplete.js";
+import { scanButtonHtml } from "../utilities/scanner.js";
+import { binButtonsHtml } from "../utilities/binPicker.js";
 
 const MATERIAL_API = 'controller/MaterialController.php';
 
@@ -10,6 +12,12 @@ let state = [];
 
 // Data material master untuk item code yang sedang diketik (hasil fetch).
 let currentMaterial = null;
+
+// Masih ada pallet yang belum di-Submit? main.js tidak memuat ulang aplikasi otomatis
+// (saat ada versi baru) selama ini true, karena daftarnya hanya ada di memori.
+export function hasUnsubmitted(){
+    return state.length > 0;
+}
 
 export function inbound(){
     currentMaterial = null;
@@ -26,7 +34,10 @@ export function inbound(){
                 <hr>
                 <div class="field">
                     <label for="item-code">Item Code</label>
-                    <input type="text" id="item-code">
+                    <div class="input-group">
+                        <input type="text" id="item-code">
+                        ${scanButtonHtml('item-code', 'item')}
+                    </div>
                 </div>
                 <div class="field wide">
                     <label for="item-name">Item Name</label>
@@ -57,7 +68,10 @@ export function inbound(){
                 <hr>
                 <div class="field">
                     <label for="bin">Bin</label>
-                    <input type="text" id="bin" list="bin-options" placeholder="kosong = STAGE">${binDatalistHtml()}
+                    <div class="input-group">
+                        <input type="text" id="bin" list="bin-options" placeholder="kosong = STAGE">
+                        ${binButtonsHtml('bin')}
+                    </div>${binDatalistHtml()}
                 </div>
                 <div class="field wide">
                     <label for="remark">Remark</label>

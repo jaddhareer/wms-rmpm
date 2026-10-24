@@ -4,6 +4,7 @@ import { toast } from "../utilities/toast.js";
 import { openPopup, closePopup } from "../utilities/popups.js";
 import { paginationHtml } from "../utilities/pagination.js";
 import { navigateTo } from "../utilities/router.js";
+import { binButtonsHtml } from "../utilities/binPicker.js";
 
 // Struktur halaman ini sama dengan transactions.js:
 // state { filters, page } -> query string -> controller -> render tabel + paginasi.
@@ -53,7 +54,10 @@ export function stock(){
                 </div>
                 <div class="field">
                     <label for="f-bin">Bin</label>
-                    <input type="text" id="f-bin" data-filter="bin" list="bin-options" value="${escapeHtml(f.bin)}">
+                    <div class="input-group">
+                        <input type="text" id="f-bin" data-filter="bin" list="bin-options" value="${escapeHtml(f.bin)}">
+                        ${binButtonsHtml('f-bin')}
+                    </div>
                     ${binDatalistHtml()}
                 </div>
                 <div class="field">

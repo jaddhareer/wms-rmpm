@@ -12,11 +12,42 @@ const API = 'controller/UsersController.php';
 let currentUser = null;         // { id, username, full_name, role, pages: [...] } atau null
 let userChangeListener = null;  // dipasang main.js untuk memperbarui nama user di navbar
 let reloginPromise = null;      // popup login ulang yang sedang terbuka (dipakai bersama)
+let loadedVersion = null;       // versi tampilan yang sedang berjalan di tab ini
+let newVersionListener = null;  // dipasang main.js: dipanggil kalau server punya versi lebih baru
 
 // main.js mendaftarkan fungsi yang dipanggil setiap kali user berganti
 // (mis. login ulang di popup memakai akun lain).
 export function onUserChange(listener){
     userChangeListener = listener;
+}
+
+// main.js mendaftarkan fungsi yang dipanggil kalau tampilan di server sudah diperbarui,
+// sementara tab ini masih menjalankan kode lama. Bisa terpanggil berkali-kali (setiap respons).
+export function onNewVersion(listener){
+    newVersionListener = listener;
+}
+
+// Semua request ke server lewat sini: fetch() biasa + membaca header X-App-Version
+// (appVersion() di config/helper.php). Respons pertama setelah halaman dibuka = versi yang
+// sedang berjalan. Kalau respons berikutnya membawa versi lain, berarti aplikasi diperbarui.
+async function request(url, options){
+    const res = await fetch(url, options);
+    const version = res.headers.get('X-App-Version');
+
+    if (version && loadedVersion === null) {
+        loadedVersion = version;
+    } else if (version && version !== loadedVersion) {
+        newVersionListener?.();
+    }
+    return res;
+}
+
+// Cek versi tanpa melakukan apa-apa lagi (dipakai main.js saat operator kembali ke aplikasi).
+// Halaman 'me' tidak wajib login, jadi tidak memicu popup login ulang.
+export async function checkForNewVersion(){
+    try {
+        await request(`${API}?action=me`);
+    } catch { /* offline: cek lagi lain kali */ }
 }
 
 export function getCurrentUser(){
@@ -37,7 +68,7 @@ function setCurrentUser(user){
 
 // Tanya server siapa yang sedang login. null = belum login / sesi sudah habis.
 export async function fetchCurrentUser(){
-    const res = await fetch(`${API}?action=me`);
+    const res = await request(`${API}?action=me`);
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
 
@@ -48,7 +79,7 @@ export async function fetchCurrentUser(){
 async function login(username, password){
     let res;
     try {
-        res = await fetch(`${API}?action=login`, {
+        res = await request(`${API}?action=login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, password }),
@@ -65,7 +96,7 @@ async function login(username, password){
 }
 
 export async function logout(){
-    const res = await fetch(`${API}?action=logout`, { method: 'POST' });
+    const res = await request(`${API}?action=logout`, { method: 'POST' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     currentUser = null;
 }
@@ -81,11 +112,11 @@ export async function logout(){
 // Kalau operator menekan Batal, respons 401 aslinya yang dikembalikan, dan halaman
 // menampilkan pesan error-nya seperti error lain.
 export async function apiFetch(url, options = {}){
-    const res = await fetch(url, options);
+    const res = await request(url, options);
     if (res.status !== 401) return res;
 
     const loggedIn = await askRelogin();
-    return loggedIn ? fetch(url, options) : res;
+    return loggedIn ? request(url, options) : res;
 }
 
 // Beberapa request bisa kena 401 bersamaan (mis. autocomplete + simpan).
