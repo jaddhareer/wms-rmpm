@@ -101,7 +101,9 @@ $remarks = array_unique(array_map(fn($r) => (string) $r['remark'], $rows));
 $commonRemark = count($remarks) === 1 ? reset($remarks) : null;
 
 // Kolom Dari/Ke sama seperti di layar Histori Transaksi: bin kalau ada, kalau tidak teksnya.
+// MUTASI gabung pallet: Ke = bin + pallet tujuan, mis. "A-01-B-01 (pallet 1)".
 $fromOf = fn($r) => $r['source_bin'] ?: ($r['source'] ?: '-');
-$toOf   = fn($r) => $r['destination_bin'] ?: ($r['destination'] ?: '-');
+$toOf   = fn($r) => ($r['destination_bin'] ?: ($r['destination'] ?: '-'))
+    . ($r['destination_pallet'] ? " (pallet {$r['destination_pallet']})" : '');
 
 require dirname(__DIR__) . '/view/transaction_print.php';

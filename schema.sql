@@ -80,8 +80,13 @@ CREATE TABLE stock (
 --   OUTBOUND -> source_bin = bin asal,             destination = 'PRODUKSI'/'QUALITY'/'OTHER'
 --               (OTHER = keluar karena alasan lain, mis. rusak; alasannya wajib di remark)
 --   MUTASI   -> source_bin = bin asal,             destination_bin = bin tujuan
+--               destination_pallet NULL = pallet utuh pindah bin;
+--               diisi = qty_actual dari pallet_number digabung ke pallet itu (sudah ada di bin tujuan)
 --   RETUR    -> source = destination dokumen OUTBOUND asal (PRODUKSI/QUALITY/OTHER),
 --               destination_bin = bin taruh balik, reference_code = kode OUTBOUND asal
+--
+-- Database lama yang belum punya kolom destination_pallet (MUTASI lama = pallet utuh, cukup NULL):
+--   ALTER TABLE transactions ADD COLUMN destination_pallet INT UNSIGNED NULL AFTER destination_bin;
 CREATE TABLE transactions (
     id                BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     transaction_code  VARCHAR(20)   NOT NULL, -- mis. RMPMIB26090001
@@ -99,6 +104,7 @@ CREATE TABLE transactions (
     source_bin        VARCHAR(20)  NULL,
     destination       VARCHAR(100) NULL,
     destination_bin   VARCHAR(20)  NULL,
+    destination_pallet INT UNSIGNED NULL, -- MUTASI gabung pallet: nomor pallet tujuan (item & exp sama)
 
     user_id     INT UNSIGNED NOT NULL,
     remark      VARCHAR(255) NULL,

@@ -18,6 +18,7 @@ class Transactions {
     private $sourceBin;
     private $destination;
     private $destinationBin;
+    private $destinationPallet;
     private $userId;
     private $remark;
 
@@ -34,6 +35,7 @@ class Transactions {
     public function setSourceBin($v)               {$this->sourceBin = $v;}
     public function setDestination($v)             {$this->destination = $v;}
     public function setDestinationBin($v)          {$this->destinationBin = $v;}
+    public function setDestinationPallet($v)       {$this->destinationPallet = $v;}
     public function setUserId($v)                  {$this->userId = $v;}
     public function setRemark($v)                  {$this->remark = $v;}
 
@@ -42,11 +44,11 @@ class Transactions {
         // created_at punya DEFAULT CURRENT_TIMESTAMP -- sama seperti Stock, tidak disebut di sini.
         $query = 'INSERT INTO ' . $this->table . '
             (transaction_code, transaction_type, reference_code, item_code, exp_date, pallet_number,
-             qty_actual, qty_sap, source, source_bin, destination, destination_bin,
+             qty_actual, qty_sap, source, source_bin, destination, destination_bin, destination_pallet,
              user_id, remark)
             VALUES
             (:transaction_code, :transaction_type, :reference_code, :item_code, :exp_date, :pallet_number,
-             :qty_actual, :qty_sap, :source, :source_bin, :destination, :destination_bin,
+             :qty_actual, :qty_sap, :source, :source_bin, :destination, :destination_bin, :destination_pallet,
              :user_id, :remark)';
 
         $stmt = $this->conn->prepare($query);
@@ -64,6 +66,7 @@ class Transactions {
             ':source_bin'       => $this->sourceBin,
             ':destination'      => $this->destination,
             ':destination_bin'  => $this->destinationBin,
+            ':destination_pallet' => $this->destinationPallet, // null selain MUTASI gabung pallet
             ':user_id'          => $this->userId,
             ':remark'           => $this->remark,
         ]);
@@ -82,7 +85,7 @@ class Transactions {
     private const COLUMNS = '
         t.id, t.transaction_code, t.transaction_type, t.reference_code,
         t.item_code, m.description, t.exp_date, t.pallet_number,
-        t.source, t.source_bin, t.destination, t.destination_bin,
+        t.source, t.source_bin, t.destination, t.destination_bin, t.destination_pallet,
         t.qty_actual, m.uom_fisik, t.qty_sap, m.uom_sap,
         COALESCE(u.full_name, u.username) AS user_name,
         t.remark, t.created_at';

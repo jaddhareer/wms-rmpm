@@ -252,8 +252,12 @@ async function loadData(){
 }
 
 // Asal & tujuan: bin kalau ada, kalau tidak nama supplier / PRODUKSI / QUALITY / OTHER.
+// MUTASI gabung pallet: tujuan = bin + pallet tujuan, mis. "A-01-B-01 (pallet 1)".
 function fromOf(row){ return row.source_bin || row.source || ''; }
-function toOf(row){ return row.destination_bin || row.destination || ''; }
+function toOf(row){
+    const to = row.destination_bin || row.destination || '';
+    return row.destination_pallet ? `${to} (pallet ${row.destination_pallet})` : to;
+}
 
 function renderRows(rows){
     q('#trx-body').innerHTML = rows.map(row => `

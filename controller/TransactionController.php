@@ -59,7 +59,8 @@ try {
                 $r['exp_date'],
                 (int) $r['pallet_number'],
                 $r['source_bin'] ?: $r['source'],            // sama seperti kolom From di layar
-                $r['destination_bin'] ?: $r['destination'],  // sama seperti kolom To di layar
+                ($r['destination_bin'] ?: $r['destination'])   // sama seperti kolom To di layar
+                    . ($r['destination_pallet'] ? " (pallet {$r['destination_pallet']})" : ''),
                 (float) $r['qty_actual'],
                 $r['uom_fisik'],
                 (float) $r['qty_sap'],

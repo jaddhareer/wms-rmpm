@@ -105,7 +105,8 @@ class Dashboard {
     //
     //   INBOUND  -> qty bertambah, pallet ada di destination_bin
     //   OUTBOUND -> qty berkurang (bin tetap)
-    //   MUTASI   -> pallet pindah ke destination_bin
+    //   MUTASI   -> pallet pindah ke destination_bin; kalau destination_pallet diisi (gabung pallet):
+    //               qty berkurang dari pallet asal, bertambah di pallet tujuan (di destination_bin)
     //   RETUR    -> qty bertambah, pallet ada di destination_bin
     public function occupancyTrend(int $days): array {
         $today = new DateTimeImmutable($this->conn->query('SELECT CURDATE()')->fetchColumn());
@@ -129,7 +130,7 @@ class Dashboard {
 
         $stmt = $this->conn->query(
             'SELECT item_code, exp_date, pallet_number, transaction_type, qty_actual, destination_bin,
-                    DATE(created_at) AS day
+                    destination_pallet, DATE(created_at) AS day
              FROM transactions
              ORDER BY created_at ASC, id ASC'
         );
@@ -153,7 +154,21 @@ class Dashboard {
                     $after['qty'] -= $qty;
                     break;
                 case 'MUTASI':
-                    $after['bin'] = $row['destination_bin'] ?: $after['bin'];
+                    if ($row['destination_pallet'] === null) {
+                        $after['bin'] = $row['destination_bin'] ?: $after['bin'];
+                        break;
+                    }
+                    // Gabung pallet: pallet asal tetap di bin-nya, qty-nya pindah ke pallet tujuan.
+                    $after['qty'] -= $qty;
+                    $targetKey = $row['item_code'] . '|' . $row['exp_date'] . '|' . $row['destination_pallet'];
+                    $targetBefore = $pallets[$targetKey] ?? ['qty' => 0.0, 'bin' => null];
+                    $targetAfter = [
+                        'qty' => $targetBefore['qty'] + $qty,
+                        'bin' => $row['destination_bin'] ?: $targetBefore['bin'],
+                    ];
+                    $this->countPallet($counts, $targetBefore, -1);
+                    $this->countPallet($counts, $targetAfter, +1);
+                    $pallets[$targetKey] = $targetAfter;
                     break;
             }
 

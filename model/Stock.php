@@ -120,6 +120,31 @@ class Stock {
         return $stmt->rowCount() > 0;
     }
 
+    // Bin to Bin gabung pallet: tambah qty ke pallet tujuan (butuh setItemCode, setExpDate,
+    // setPalletNumber, setQtyActual, setQtySap). Syarat "bin = :bin" memastikan pallet tujuan
+    // memang ada di bin tujuan. Return false kalau tidak ada baris yang berubah.
+    public function addQty(string $bin): bool {
+        $query = 'UPDATE ' . $this->table . '
+            SET qty_actual = qty_actual + :qty_in,
+                qty_sap    = qty_sap + :qty_sap
+            WHERE item_code = :item_code
+              AND exp_date = :exp_date
+              AND pallet_number = :pallet_number
+              AND bin = :bin';
+
+        $stmt = $this->conn->prepare($query);
+        $stmt->execute([
+            ':qty_in'        => $this->qtyActual,
+            ':qty_sap'       => $this->qtySap,
+            ':item_code'     => $this->itemCode,
+            ':exp_date'      => $this->expDate,
+            ':pallet_number' => $this->palletNumber,
+            ':bin'           => $bin,
+        ]);
+
+        return $stmt->rowCount() > 0;
+    }
+
     // Ambil satu pallet (butuh setItemCode, setExpDate, setPalletNumber).
     // FOR UPDATE mengunci baris ini sampai commit/rollback, supaya data yang dibaca
     // (bin, sisa qty) tidak berubah oleh proses lain sebelum kita selesai.
@@ -141,8 +166,9 @@ class Stock {
     // Semua pallet yang masih ada isinya untuk satu item, urut FEFO
     // (expired paling dekat dulu, lalu nomor pallet). Pallet qty 0 tidak ikut.
     // conversion_factor diambil dari stock (faktor pallet itu sendiri), bukan default master.
+    // supplier ikut dikirim: Bin to Bin hanya boleh menggabung pallet yang supplier-nya sama.
     public function getStockByItemCode($itemCode) {
-        $query = 'SELECT s.item_code, m.description, s.exp_date, s.pallet_number, s.bin,
+        $query = 'SELECT s.item_code, m.description, s.exp_date, s.pallet_number, s.supplier, s.bin,
                          s.qty_actual, s.conversion_factor, s.qty_sap, s.remark,
                          m.uom_fisik, m.uom_sap
                   FROM ' . $this->table . ' s
@@ -157,7 +183,7 @@ class Stock {
     }
 
     public function getStockByBin($bin) {
-        $query = 'SELECT s.item_code, m.description, s.exp_date, s.pallet_number, s.bin,
+        $query = 'SELECT s.item_code, m.description, s.exp_date, s.pallet_number, s.supplier, s.bin,
                          s.qty_actual, s.conversion_factor, s.qty_sap, s.remark,
                          m.uom_fisik, m.uom_sap
                   FROM ' . $this->table . ' s
