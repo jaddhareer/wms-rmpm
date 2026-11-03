@@ -145,6 +145,22 @@ class Stock {
         return $stmt->rowCount() > 0;
     }
 
+    // Remark manual dari Stock Overview, mis. pallet di-reject QC (butuh setItemCode, setExpDate,
+    // setPalletNumber, setRemark). Remark lama diganti, riwayatnya ada di ledger.
+    public function updateRemark(): void {
+        $query = 'UPDATE ' . $this->table . '
+            SET remark = :remark
+            WHERE item_code = :item_code AND exp_date = :exp_date AND pallet_number = :pallet_number';
+
+        $stmt = $this->conn->prepare($query);
+        $stmt->execute([
+            ':remark'        => $this->remark,
+            ':item_code'     => $this->itemCode,
+            ':exp_date'      => $this->expDate,
+            ':pallet_number' => $this->palletNumber,
+        ]);
+    }
+
     // Ambil satu pallet (butuh setItemCode, setExpDate, setPalletNumber).
     // FOR UPDATE mengunci baris ini sampai commit/rollback, supaya data yang dibaca
     // (bin, sisa qty) tidak berubah oleh proses lain sebelum kita selesai.

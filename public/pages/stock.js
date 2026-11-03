@@ -243,11 +243,13 @@ async function showLotDetail(itemCode, expDate){
         const actions = [['bintobin', 'Move', 'swap'], ['outbound', 'Outbound', 'outbound']]
             .filter(([page]) => canOpen(page));
 
+        // Remark selalu ada: siapa pun yang membuka menu ini boleh memberi remark (StockRemark.php).
         const actionsHtml = (index) => `
             <td><div class="row-actions">
                 ${actions.map(([page, label, icon]) => `
                     <button type="button" class="btn-sm btn-soft" data-goto="${page}" data-index="${index}" data-icon="${icon}">${label}</button>
                 `).join('')}
+                <button type="button" class="btn-sm" data-remark="${index}" data-icon="edit">Remark</button>
             </div></td>`;
 
         const box = openPopup(`
@@ -263,8 +265,7 @@ async function showLotDetail(itemCode, expDate){
                     <thead>
                         <tr>
                             <th class="num">Pallet</th><th>Supplier</th><th>Bin</th><th class="num">Qty</th><th>UoM</th><th class="num">Faktor</th>
-                            <th class="num">Qty SAP</th><th>UoM SAP</th><th>Remark</th><th>Last Update</th>
-                            ${actions.length ? '<th></th>' : ''}
+                            <th class="num">Qty SAP</th><th>UoM SAP</th><th>Remark</th><th>Last Update</th><th></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -280,7 +281,7 @@ async function showLotDetail(itemCode, expDate){
                                 <td>${escapeHtml(r.uom_sap)}</td>
                                 <td class="wrap">${escapeHtml(r.remark)}</td>
                                 <td>${escapeHtml(r.updated_at)}</td>
-                                ${actions.length ? actionsHtml(index) : ''}
+                                ${actionsHtml(index)}
                             </tr>
                         `).join('')}
                     </tbody>
@@ -298,6 +299,12 @@ async function showLotDetail(itemCode, expDate){
         // #outbound?item=400010303&exp=2027-01-31&pallet=2. Halaman tujuan membaca
         // ulang stoknya dari server, jadi qty yang dipakai selalu yang terbaru.
         box.addEventListener('click', (e) => {
+            const remarkButton = e.target.closest('[data-remark]');
+            if (remarkButton) {
+                showRemarkForm(rows[Number(remarkButton.dataset.remark)]);
+                return;
+            }
+
             const button = e.target.closest('[data-goto]');
             if (!button) return;
 
@@ -313,6 +320,66 @@ async function showLotDetail(itemCode, expDate){
     } catch (err) {
         toast('Tidak bisa menghubungi server: ' + err.message, 'error');
     }
+}
+
+// Remark manual satu pallet (mis. di-reject QC). Remark lama diganti, dan perubahannya
+// tercatat di ledger sebagai MUTASI di bin yang sama. Popup ini menggantikan popup detail
+// lot; setelah Simpan / Batal, popup detail lot dibuka lagi dengan data terbaru.
+function showRemarkForm(pallet){
+    const backToLot = () => showLotDetail(pallet.item_code, pallet.exp_date);
+
+    const box = openPopup(`
+        <h3>Remark Pallet ${escapeHtml(pallet.pallet_number)}</h3>
+        <p class="hint">${escapeHtml(pallet.item_code)} — ${escapeHtml(pallet.description)},
+            exp ${escapeHtml(pallet.exp_date)}, bin ${escapeHtml(pallet.bin)}</p>
+        <form class="form-stack">
+            <label class="field"><span class="field-label">Remark</span>
+                <input name="remark" maxlength="240" autocomplete="off" value="${escapeHtml(pallet.remark)}"
+                       placeholder="mis. REJECT QC - kemasan bocor">
+                <small class="hint">Mengganti remark pallet ini (kosongkan untuk menghapus). Tercatat di Histori Transaksi sebagai MUTASI.</small>
+            </label>
+            <p class="form-error"></p>
+            <div class="form-actions">
+                <button type="submit" class="btn-primary" data-icon="save">Simpan</button>
+                <button type="button" class="btn-cancel" data-icon="x">Batal</button>
+            </div>
+        </form>
+    `);
+
+    const form = box.querySelector('form');
+    const errorBox = form.querySelector('.form-error');
+    const button = form.querySelector('button[type="submit"]');
+
+    box.querySelector('.btn-cancel').addEventListener('click', backToLot);
+    form.elements.remark.focus();
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        errorBox.textContent = '';
+        button.disabled = true; // cegah submit dobel
+
+        try {
+            const res = await apiFetch('controller/StockRemark.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    item_code:     pallet.item_code,
+                    exp_date:      pallet.exp_date,
+                    pallet_number: pallet.pallet_number,
+                    remark:        form.elements.remark.value.trim(),
+                }),
+            });
+            const result = await res.json().catch(() => ({}));
+            if (!result.success) throw new Error(result.error || `HTTP ${res.status}`);
+
+            toast(result.message, 'success');
+            loadData();  // kolom Remark di tabel ringkasan ikut berubah
+            backToLot();
+        } catch (err) {
+            errorBox.textContent = err.message; // textContent: aman tanpa escapeHtml
+            button.disabled = false;
+        }
+    });
 }
 
 async function handleExport(){

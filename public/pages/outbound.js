@@ -227,7 +227,7 @@ function showPalletPopup(pallets){
         <div class="table-wrap">
             <table>
                 <thead>
-                    <tr><th>Exp Date</th><th class="num">Pallet</th><th>Bin</th><th class="num">Qty</th><th></th></tr>
+                    <tr><th>Exp Date</th><th class="num">Pallet</th><th>Bin</th><th class="num">Qty</th><th>Remark</th><th></th></tr>
                 </thead>
                 <tbody>
                     ${pallets.map((pallet, index) => `
@@ -236,6 +236,7 @@ function showPalletPopup(pallets){
                             <td class="num">${escapeHtml(pallet.pallet_number)}</td>
                             <td>${escapeHtml(pallet.bin)}</td>
                             <td class="num">${escapeHtml(pallet.qty_actual)} ${escapeHtml(pallet.uom_fisik)}</td>
+                            <td class="wrap">${escapeHtml(pallet.remark)}</td>
                             <td class="pick-arrow" data-icon="chevron-right"></td>
                         </tr>
                     `).join('')}
@@ -272,6 +273,9 @@ function selectPallet(pallet){
     q('#qty-fisik').value     = pallet ? parseFloat(pallet.qty_actual) : '';
 
     calculateQtySap();
+
+    // Remark stok (mis. REJECT dari Stock Overview) hanya diinformasikan, tidak memblokir.
+    if (pallet?.remark) toast(`Remark pallet ${pallet.pallet_number}: ${pallet.remark}`, 'info');
 }
 
 // Hanya untuk ditampilkan. Server menghitung ulang sendiri.

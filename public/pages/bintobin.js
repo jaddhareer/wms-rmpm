@@ -169,7 +169,7 @@ function pickPallet(data){
             <div class="table-wrap">
                 <table>
                     <thead>
-                        <tr><th>Exp Date</th><th class="num">Pallet</th><th>Bin</th><th class="num">Qty</th><th></th></tr>
+                        <tr><th>Exp Date</th><th class="num">Pallet</th><th>Bin</th><th class="num">Qty</th><th>Remark</th><th></th></tr>
                     </thead>
                     <tbody>
                         ${data.map((pallet, index) => `
@@ -178,6 +178,7 @@ function pickPallet(data){
                                 <td class="num">${escapeHtml(pallet.pallet_number)}</td>
                                 <td>${escapeHtml(pallet.bin)}</td>
                                 <td class="num">${escapeHtml(pallet.qty_actual)} ${escapeHtml(pallet.uom_fisik)}</td>
+                                <td class="wrap">${escapeHtml(pallet.remark)}</td>
                                 <td class="pick-arrow" data-icon="chevron-right"></td>
                             </tr>
                         `).join('')}
@@ -207,6 +208,9 @@ function fillPallet(pallet){
     q('#qty-unit').textContent = pallet.uom_fisik || '';
     renderTarget();
     q('#target-bin').focus();
+
+    // Remark stok (mis. REJECT dari Stock Overview) hanya diinformasikan, tidak memblokir.
+    if (pallet.remark) toast(`Remark pallet ${pallet.pallet_number}: ${pallet.remark}`, 'info');
 }
 
 function clearSelected(){

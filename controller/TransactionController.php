@@ -44,9 +44,12 @@ try {
         $rows = $transactions->searchAll($filters);
 
         $xlsx = new XlsxWriter('Transaksi');
+        // Kolom asal/tujuan ditulis apa adanya seperti di ledger (bukan digabung jadi From/To
+        // seperti di layar), walau kosong: isinya berbeda per jenis transaksi, lihat schema.sql.
         $xlsx->setHeaders([
-            'ID Transaksi', 'Jenis', 'Item Code', 'Description', 'Exp Date', 'Pallet',
-            'From', 'To', 'Qty', 'UoM', 'Qty SAP', 'UoM SAP', 'User', 'Remark', 'Date Time',
+            'ID Transaksi', 'Jenis', 'Reference Code', 'Item Code', 'Description', 'Exp Date', 'Pallet',
+            'Source', 'Source Bin', 'Destination', 'Destination Bin', 'Pallet Tujuan',
+            'Qty', 'UoM', 'Qty SAP', 'UoM SAP', 'User', 'Remark', 'Date Time',
         ]);
         $xlsx->setFourDecimalColumns(['Qty SAP']); // tampil 4 desimal, sama dengan di layar
 
@@ -54,13 +57,16 @@ try {
             $xlsx->addRow([
                 $r['transaction_code'],
                 $r['transaction_type'],
+                $r['reference_code'],     // RETUR: kode OUTBOUND asal
                 $r['item_code'],
                 $r['description'],
                 $r['exp_date'],
                 (int) $r['pallet_number'],
-                $r['source_bin'] ?: $r['source'],            // sama seperti kolom From di layar
-                ($r['destination_bin'] ?: $r['destination'])   // sama seperti kolom To di layar
-                    . ($r['destination_pallet'] ? " (pallet {$r['destination_pallet']})" : ''),
+                $r['source'],
+                $r['source_bin'],
+                $r['destination'],
+                $r['destination_bin'],
+                $r['destination_pallet'] === null ? null : (int) $r['destination_pallet'], // MUTASI gabung pallet
                 (float) $r['qty_actual'],
                 $r['uom_fisik'],
                 (float) $r['qty_sap'],

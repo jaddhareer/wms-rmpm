@@ -7,6 +7,7 @@ import { outbound, hasUnsubmitted as outboundUnsubmitted } from "./pages/outboun
 import { retur, hasUnsubmitted as returUnsubmitted } from "./pages/retur.js";
 import { transactions } from "./pages/transactions.js";
 import { stock } from "./pages/stock.js";
+import { material } from "./pages/material.js";
 import { users, showChangePasswordPopup } from "./pages/users.js";
 import { fetchCurrentUser, showLoginScreen, onUserChange, logout, canOpen, onNewVersion, checkForNewVersion } from "./utilities/auth.js";
 import { toast } from "./utilities/toast.js";
@@ -23,7 +24,7 @@ const MENU_GROUPS = [
     [['dashboard', 'Dashboard', 'grid']],
     [['inbound', 'Inbound', 'inbound'], ['outbound', 'Outbound', 'outbound'], ['bintobin', 'Bin to Bin', 'swap'], ['retur', 'Retur', 'undo']],
     [['transactions', 'Histori Transaksi', 'history'], ['stock', 'Stock Overview', 'package']],
-    [['user', 'User', 'users']],
+    [['material', 'Material', 'tag'], ['user', 'User', 'users']],
 ];
 const MENU_PAGES = MENU_GROUPS.flat().map(([page]) => page);
 
@@ -268,6 +269,8 @@ function renderPage(page, params = {}){
         transactions();
     } else if(page === 'stock'){
         stock();
+    } else if(page === 'material'){
+        material();
     } else if(page === 'user'){
         users();
     } else {

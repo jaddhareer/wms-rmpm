@@ -147,7 +147,7 @@ const SESSION_IDLE_SECONDS = 8 * 60 * 60;
 //   - browser: daftar ini dikirim saat login, navbar hanya menampilkan menu yang boleh
 // Menambah role (mis. viewer yang hanya boleh melihat) cukup menambah satu baris di sini.
 const ROLE_PAGES = [
-    'admin'    => ['dashboard', 'inbound', 'outbound', 'bintobin', 'retur', 'transactions', 'stock', 'user'],
+    'admin'    => ['dashboard', 'inbound', 'outbound', 'bintobin', 'retur', 'transactions', 'stock', 'material', 'user'],
     'operator' => ['dashboard', 'inbound', 'outbound', 'bintobin', 'retur', 'transactions', 'stock'],
 ];
 
