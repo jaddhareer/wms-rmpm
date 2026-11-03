@@ -504,6 +504,21 @@ input[type="checkbox"], input[type="radio"] { width: 18px; height: 18px; accent-
     border-radius: var(--radius-sm);
 }
 
+/* Retur: unit tidak utuh yang sudah ditimbang, belum di-Add. Satu chip = satu unit + tombol hapus. */
+.partial-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.partial-list:empty { display: none; }
+.partial-list li {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 2px 2px 12px;
+    font-size: 14px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+}
+.partial-list li > button { border-radius: 999px; }
+
 /* Dropdown (utilities/dropdown.js): tombol yang tampil seperti <select>, panelnya
    (mis. checklist) muncul di bawah dan tersembunyi lagi saat klik di luar. */
 .dropdown { position: relative; }

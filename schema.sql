@@ -54,7 +54,7 @@ CREATE TABLE stock (
     item_code     VARCHAR(20)   NOT NULL,
     exp_date      DATE          NOT NULL,
     pallet_number INT UNSIGNED  NOT NULL,
-    supplier      VARCHAR(100)  NULL,         -- diisi saat Inbound, tidak berubah (Retur kembali ke pallet asal)
+    supplier      VARCHAR(100)  NULL,         -- diisi saat Inbound, tidak berubah (Retur kembali ke pallet asal; pallet sisa Retur menyalin supplier pallet asal)
     bin          VARCHAR(20)   NOT NULL,
     qty_actual    DECIMAL(14,3) NOT NULL,
     conversion_factor DECIMAL(12,4) NOT NULL, -- faktor pallet ini (bisa beda dari default material master)
@@ -84,6 +84,8 @@ CREATE TABLE stock (
 --               diisi = qty_actual dari pallet_number digabung ke pallet itu (sudah ada di bin tujuan)
 --   RETUR    -> source = destination dokumen OUTBOUND asal (PRODUKSI/QUALITY/OTHER),
 --               destination_bin = bin taruh balik, reference_code = kode OUTBOUND asal
+--               destination_pallet NULL = kembali ke pallet asal; diisi = unit tidak utuh (qty 1, qty_sap = berat),
+--               masuk pallet sisa itu, pallet_number tetap pallet asal di dokumen OUTBOUND
 --
 -- Database lama yang belum punya kolom destination_pallet (MUTASI lama = pallet utuh, cukup NULL):
 --   ALTER TABLE transactions ADD COLUMN destination_pallet INT UNSIGNED NULL AFTER destination_bin;
@@ -104,7 +106,7 @@ CREATE TABLE transactions (
     source_bin        VARCHAR(20)  NULL,
     destination       VARCHAR(100) NULL,
     destination_bin   VARCHAR(20)  NULL,
-    destination_pallet INT UNSIGNED NULL, -- MUTASI gabung pallet: nomor pallet tujuan (item & exp sama)
+    destination_pallet INT UNSIGNED NULL, -- MUTASI gabung pallet / RETUR unit tidak utuh: nomor pallet tujuan (item & exp sama)
 
     user_id     INT UNSIGNED NOT NULL,
     remark      VARCHAR(255) NULL,

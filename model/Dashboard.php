@@ -107,7 +107,8 @@ class Dashboard {
     //   OUTBOUND -> qty berkurang (bin tetap)
     //   MUTASI   -> pallet pindah ke destination_bin; kalau destination_pallet diisi (gabung pallet):
     //               qty berkurang dari pallet asal, bertambah di pallet tujuan (di destination_bin)
-    //   RETUR    -> qty bertambah, pallet ada di destination_bin
+    //   RETUR    -> qty bertambah, pallet ada di destination_bin; kalau destination_pallet diisi (unit
+    //               tidak utuh): qty bertambah di pallet sisa itu, pallet asal tidak berubah
     public function occupancyTrend(int $days): array {
         $today = new DateTimeImmutable($this->conn->query('SELECT CURDATE()')->fetchColumn());
         $start = $today->modify('-' . ($days - 1) . ' day');
@@ -145,8 +146,14 @@ class Dashboard {
             $qty = (float) $row['qty_actual'];
 
             switch ($row['transaction_type']) {
-                case 'INBOUND':
                 case 'RETUR':
+                    if ($row['destination_pallet'] !== null) {
+                        // Unit tidak utuh: masuk pallet sisa, pallet asal tidak berubah.
+                        $this->addToPallet($pallets, $counts, $row, $qty);
+                        break;
+                    }
+                    // fall through: retur biasa = qty kembali ke pallet asal, seperti INBOUND
+                case 'INBOUND':
                     $after['qty'] += $qty;
                     $after['bin'] = $row['destination_bin'] ?: $after['bin'];
                     break;
@@ -160,15 +167,7 @@ class Dashboard {
                     }
                     // Gabung pallet: pallet asal tetap di bin-nya, qty-nya pindah ke pallet tujuan.
                     $after['qty'] -= $qty;
-                    $targetKey = $row['item_code'] . '|' . $row['exp_date'] . '|' . $row['destination_pallet'];
-                    $targetBefore = $pallets[$targetKey] ?? ['qty' => 0.0, 'bin' => null];
-                    $targetAfter = [
-                        'qty' => $targetBefore['qty'] + $qty,
-                        'bin' => $row['destination_bin'] ?: $targetBefore['bin'],
-                    ];
-                    $this->countPallet($counts, $targetBefore, -1);
-                    $this->countPallet($counts, $targetAfter, +1);
-                    $pallets[$targetKey] = $targetAfter;
+                    $this->addToPallet($pallets, $counts, $row, $qty);
                     break;
             }
 
@@ -209,6 +208,19 @@ class Dashboard {
         }
 
         return ['days' => $days, 'labels' => $labels, 'series' => $series, 'mismatch' => $mismatch];
+    }
+
+    // Putar ulang: tambah qty ke pallet tujuan baris ledger (destination_pallet, di destination_bin).
+    private function addToPallet(array &$pallets, array &$counts, array $row, float $qty): void {
+        $key = $row['item_code'] . '|' . $row['exp_date'] . '|' . $row['destination_pallet'];
+        $before = $pallets[$key] ?? ['qty' => 0.0, 'bin' => null];
+        $after = [
+            'qty' => $before['qty'] + $qty,
+            'bin' => $row['destination_bin'] ?: $before['bin'],
+        ];
+        $this->countPallet($counts, $before, -1);
+        $this->countPallet($counts, $after, +1);
+        $pallets[$key] = $after;
     }
 
     // Tambah/kurangi hitungan lokasi untuk satu pallet, kalau pallet itu berisi dan lokasinya dihitung.

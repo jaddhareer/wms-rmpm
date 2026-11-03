@@ -7,10 +7,13 @@ import { binButtonsHtml } from "../utilities/binPicker.js";
 // Retur: barang dari PRODUKSI/QUALITY/OTHER kembali ke gudang, ke nomor pallet asalnya.
 // Alur: muat dokumen OUTBOUND -> pilih pallet -> isi qty (dan bin kalau pallet sudah kosong)
 //       -> Add ke daftar -> Submit.
-// Qty boleh diisi di salah satu kolom: Qty Retur (UoM fisik, mis. ROLL) atau Qty SAP (mis. KG).
-// Yang terakhir diketik jadi acuan, kolom satunya dihitung otomatis. Untuk retur kurang dari
-// 1 unit (keluar 1 ROLL = 36,666 KG, kembali 10 KG), isi Qty SAP = 10: qty SAP tercatat persis
-// 10 KG dan qty fisik diturunkan oleh server (10 / 36,666 = 0,273 ROLL).
+// Per pallet ada dua isian:
+// - Qty Retur Utuh: unit utuh dalam UoM fisik (mis. 5 ROLL), kembali ke pallet asal.
+//   Qty SAP dihitung otomatis.
+// - Tidak Utuh: unit yang sudah terpakai sebagian (mis. ROLL yang tinggal 1,2 KG), ditimbang dan
+//   ditambahkan SATU PER SATU dalam UoM SAP. Setiap unit = 1 unit fisik dengan beratnya sendiri,
+//   jadi satu baris di daftar & ledger (remark diawali [TIDAK UTUH]). Server memasukkan semua unit
+//   tidak utuh satu pallet asal ke SATU pallet sisa baru (lihat ReturController.php).
 
 const API = 'controller/ReturController.php';
 
@@ -18,13 +21,13 @@ const API = 'controller/ReturController.php';
 let refCode = '';        // kode dokumen outbound yang sedang dimuat
 let lines = [];          // pallet-pallet dokumen itu (dari server)
 let selected = null;     // pallet yang sedang dipilih di form
-let cart = [];           // pallet yang sudah di-Add, belum di-submit
-let inputUnit = 'fisik'; // kolom qty yang terakhir diketik operator: 'fisik' | 'sap'
+let partials = [];       // berat unit tidak utuh pallet terpilih (UoM SAP), belum di-Add
+let cart = [];           // baris yang sudah di-Add, belum di-submit (satu pallet boleh beberapa baris)
 let requestId = 0;
 
-// Masih ada pallet di Daftar Retur yang belum di-Submit? (lihat hasUnsubmitted di Inbound.js)
+// Masih ada isian yang belum di-Submit? (lihat hasUnsubmitted di Inbound.js)
 export function hasUnsubmitted(){
-    return cart.length > 0;
+    return cart.length > 0 || partials.length > 0;
 }
 
 // params datang dari router, mis. { code: 'RMPMOB26090007' } saat dibuka dari popup transaksi.
@@ -63,19 +66,28 @@ export function retur(params = {}){
             <div class="callout" id="sel-info">Belum ada. Klik Pilih pada tabel pallet di atas.</div>
             <div class="form-grid">
                 <div class="field">
-                    <label for="qty">Qty Retur</label>
+                    <label for="qty">Qty Retur Utuh</label>
                     <div class="input-group">
                         <input type="number" id="qty" min="0" step="any" disabled>
                         <span class="unit" id="sel-uom"></span>
                     </div>
                 </div>
                 <div class="field">
-                    <label for="qty-sap">Qty SAP</label>
+                    <label for="qty-sap">Qty SAP Utuh</label>
                     <div class="input-group">
-                        <input type="number" id="qty-sap" min="0" step="any" disabled>
+                        <input type="text" id="qty-sap" disabled>
                         <span class="unit" id="sel-uom-sap"></span>
                     </div>
-                    <small class="hint" id="qty-hint"></small>
+                </div>
+                <div class="field wide">
+                    <label for="partial-qty" id="partial-label">Tidak Utuh</label>
+                    <div class="input-group">
+                        <input type="number" id="partial-qty" min="0" step="any" placeholder="berat" disabled>
+                        <span class="unit" id="partial-uom"></span>
+                        <button type="button" id="btn-add-partial" class="btn-soft" data-icon="plus" disabled>Tambah</button>
+                    </div>
+                    <small class="hint" id="partial-hint"></small>
+                    <ol class="partial-list" id="partial-list"></ol>
                 </div>
                 <div class="field wide">
                     <label for="bin">Bin</label>
@@ -96,14 +108,14 @@ export function retur(params = {}){
             <div class="form-grid mb">
                 <div class="field full">
                     <label for="remark">Remark</label>
-                    <input type="text" id="remark" placeholder="opsional, ditambahkan setelah 'Retur dari transaksi ...'">
+                    <input type="text" id="remark" maxlength="200" placeholder="opsional, ditambahkan setelah 'Retur dari transaksi ...'">
                 </div>
             </div>
             <div class="table-wrap">
                 <table>
                     <thead>
                         <tr>
-                            <th>Item Code</th><th>Description</th><th>Exp Date</th><th class="num">Pallet</th>
+                            <th>Item Code</th><th>Description</th><th>Exp Date</th><th class="num">Pallet</th><th>Kondisi</th>
                             <th class="num">Qty</th><th>UoM</th><th class="num">Qty SAP</th><th>Bin</th><th></th>
                         </tr>
                     </thead>
@@ -121,8 +133,12 @@ export function retur(params = {}){
         if (e.key === 'Enter') loadReference(q('#ref-code').value);
     });
     q('#lines-body').addEventListener('click', handlePick);
-    q('#qty').addEventListener('input', () => { inputUnit = 'fisik'; syncQty(); });
-    q('#qty-sap').addEventListener('input', () => { inputUnit = 'sap'; syncQty(); });
+    q('#qty').addEventListener('input', syncQty);
+    q('#btn-add-partial').addEventListener('click', handleAddPartial);
+    q('#partial-qty').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') handleAddPartial();
+    });
+    q('#partial-list').addEventListener('click', handleDeletePartial);
     q('#btn-add').addEventListener('click', handleAdd);
     q('#cart-body').addEventListener('click', handleDeleteCart);
     q('#btn-submit').addEventListener('click', handleSubmit);
@@ -258,135 +274,197 @@ function handlePick(e){
 // Isi form sesuai pallet yang dipilih. Aturan bin:
 // - pallet sudah kosong -> bin wajib diisi (pallet "hidup lagi" di lokasi baru)
 // - pallet masih ada isi -> barang ditaruh ke pallet yang sama, bin tidak berubah
+// - pallet ini sudah ada di daftar -> bin mengikuti baris itu (server menaruh semua di bin yang sama)
 function selectLine(line){
     selected = line;
+    partials = [];
 
     const ready = Boolean(line);
     q('#qty').disabled = !ready;
-    q('#qty-sap').disabled = !ready;
+    q('#partial-qty').disabled = !ready;
+    q('#btn-add-partial').disabled = !ready;
     q('#btn-add').disabled = !ready;
-    inputUnit = 'fisik';
+    q('#partial-qty').value = '';
 
     if (!line) {
         q('#sel-info').textContent = 'Belum ada. Klik Pilih pada tabel pallet di atas.';
         q('#qty').value = '';
         q('#qty-sap').value = '';
-        q('#qty-hint').textContent = '';
+        q('#partial-label').textContent = 'Tidak Utuh';
         q('#bin').value = '';
         q('#bin').disabled = true;
         q('#bin-hint').textContent = '';
         q('#sel-uom').textContent = '';
         q('#sel-uom-sap').textContent = '';
+        q('#partial-uom').textContent = '';
+        renderPartials();
         return;
     }
 
     q('#sel-info').textContent = `${line.item_code} ${line.description}, exp ${line.exp_date}, pallet ${line.pallet_number}`;
     q('#sel-uom').textContent = line.uom_fisik;
     q('#sel-uom-sap').textContent = line.uom_sap;
-    q('#qty').value = remainingOf(line);   // default: semua sisa kembali
+    q('#partial-uom').textContent = line.uom_sap;
+    q('#partial-label').textContent = `${line.uom_fisik} Tidak Utuh`;
+    q('#qty').value = remainingOf(line);   // default: semua sisa kembali utuh
 
     const palletEmpty = parseFloat(line.stock_qty) <= 0;
-    q('#bin').disabled = !palletEmpty;
-    q('#bin').value = palletEmpty ? '' : line.stock_bin;
-    q('#bin-hint').textContent = palletEmpty
-        ? 'Pallet sudah kosong: isi bin tempat barang retur ditaruh.'
-        : 'Pallet masih ada isinya: barang retur masuk ke pallet yang sama, bin tetap.';
+    const binInCart = cart.find(c => keyOf(c) === keyOf(line))?.bin;
+    q('#bin').disabled = !palletEmpty || Boolean(binInCart);
+    q('#bin').value = palletEmpty ? (binInCart ?? '') : line.stock_bin;
+    q('#bin-hint').textContent = !palletEmpty
+        ? 'Pallet masih ada isinya: barang retur masuk ke pallet yang sama, bin tetap.'
+        : binInCart
+            ? 'Pallet ini sudah ada di daftar: bin mengikuti baris sebelumnya.'
+            : 'Pallet sudah kosong: isi bin tempat barang retur ditaruh.';
 
     syncQty();
+    renderPartials();
     q('#qty').focus();
 }
 
-// Isi kolom qty yang TIDAK diketik dari kolom yang diketik (inputUnit). Hanya untuk ditampilkan:
-// server menghitung ulang dengan aturan yang sama (lihat ReturController.php).
-// Retur semua sisa -> kedua angka = sisa persis, tanpa selisih pembulatan.
+// Qty SAP unit utuh, aturan sama dengan server (lihat ReturController.php): qty x faktor.
+// Retur semua sisa dan bedanya hanya selisih pembulatan -> qty SAP = sisa persis. Kalau sebagian
+// sudah kembali tidak utuh, sisa SAP lebih besar dari sisa unit x faktor: tetap qty x faktor.
+function wholeSapOf(qty){
+    const remaining = remainingOf(selected);
+    const remainingSap = remainingSapOf(selected);
+    const factor = parseFloat(selected.conversion_factor);
+    const calculated = round(qty * factor, QTY_SAP_DECIMALS);
+
+    const isAllRemaining = Math.abs(qty - remaining) < 0.0005
+        && Math.abs(remainingSap - calculated) <= 0.0005 * factor + 0.00005;
+
+    return isAllRemaining ? remainingSap : Math.min(calculated, remainingSap);
+}
+
+// Hanya untuk ditampilkan. Server menghitung ulang sendiri.
 function syncQty(){
     if (!selected) return;
 
-    const factor = parseFloat(selected.conversion_factor);
-    const remaining = remainingOf(selected);
-    const remainingSap = remainingSapOf(selected);
-    const uomFisik = selected.uom_fisik;
-    const uomSap = selected.uom_sap;
-
-    if (inputUnit === 'sap') {
-        const qtySap = parseFloat(q('#qty-sap').value);
-        let qty = '';
-        if (qtySap > 0 && factor > 0) {
-            qty = Math.abs(qtySap - remainingSap) < 0.00005
-                ? remaining
-                : Math.min(round(qtySap / factor, 3), remaining);
-        }
-        q('#qty').value = qty;
-        q('#qty-hint').textContent = `Diisi dalam ${uomSap}: qty SAP dicatat persis, qty ${uomFisik} dihitung otomatis`
-            + ` (${uomSap} / ${formatNumber(factor)}).`;
-    } else {
-        const qty = parseFloat(q('#qty').value);
-        let qtySap = '';
-        if (qty > 0 && factor > 0) {
-            qtySap = Math.abs(qty - remaining) < 0.0005
-                ? remainingSap
-                : Math.min(round(qty * factor, QTY_SAP_DECIMALS), remainingSap);
-            qtySap = qtySap.toFixed(QTY_SAP_DECIMALS);
-        }
-        q('#qty-sap').value = qtySap;
-        q('#qty-hint').textContent = `Retur kurang dari 1 ${uomFisik}? Isi kolom Qty SAP (${uomSap}) dengan hasil timbang.`;
-    }
+    const qty = parseFloat(q('#qty').value);
+    q('#qty-sap').value = qty > 0 ? wholeSapOf(qty).toFixed(QTY_SAP_DECIMALS) : '';
 }
 
+// Satu unit tidak utuh = satu berat. Dicek di sini supaya salah ketik langsung ketahuan;
+// batas total (utuh + tidak utuh <= sisa) dicek saat Add.
+function handleAddPartial(){
+    if (!selected) return;
+
+    const weight = round(parseFloat(q('#partial-qty').value), QTY_SAP_DECIMALS);
+    const factor = parseFloat(selected.conversion_factor);
+    const { uom_fisik: uom, uom_sap: uomSap } = selected;
+
+    if (!(weight > 0)) {
+        toast(`Isi berat ${uom} tidak utuh (${uomSap})`, 'warning');
+        q('#partial-qty').focus();
+        return;
+    }
+    if (weight >= factor) {
+        toast(`${uom} tidak utuh harus kurang dari 1 ${uom} (${formatQtySap(factor)} ${uomSap}). ${uom} utuh diisi di Qty Retur Utuh.`, 'warning');
+        q('#partial-qty').focus();
+        return;
+    }
+
+    partials.push(weight);
+    q('#partial-qty').value = '';
+    q('#partial-qty').focus(); // siap untuk unit berikutnya
+    renderPartials();
+}
+
+function handleDeletePartial(e){
+    const button = e.target.closest('button[data-partial]');
+    if (!button) return;
+
+    partials.splice(Number(button.dataset.partial), 1);
+    renderPartials();
+}
+
+// Daftar unit tidak utuh pallet terpilih + petunjuk/total di bawah input.
+function renderPartials(){
+    if (!selected) {
+        q('#partial-hint').textContent = '';
+        q('#partial-list').innerHTML = '';
+        return;
+    }
+
+    const { uom_fisik: uom, uom_sap: uomSap } = selected;
+
+    if (partials.length === 0) {
+        q('#partial-hint').textContent = `Ada ${uom} yang sudah terpakai sebagian? Timbang satu per satu, isi beratnya, `
+            + `lalu klik Tambah (1 ${uom} utuh = ${formatNumber(selected.conversion_factor)} ${uomSap}). `
+            + `Masing-masing dihitung 1 ${uom} dan masuk pallet baru di bin yang sama.`;
+    } else {
+        const total = round(partials.reduce((sum, w) => sum + w, 0), QTY_SAP_DECIMALS);
+        q('#partial-hint').textContent = `${partials.length} ${uom} tidak utuh, total ${formatQtySap(total)} ${uomSap}. `
+            + `Masuk pallet baru di bin yang sama.`;
+    }
+
+    // Tombol hapus = tombol ikon saja: isinya harus benar-benar kosong (lihat :empty di style.css).
+    q('#partial-list').innerHTML = partials.map((weight, index) => `
+        <li>${escapeHtml(uom)} ${index + 1}: ${formatQtySap(weight)} ${escapeHtml(uomSap)}<button type="button" class="btn-sm"
+            data-partial="${index}" data-icon="x" aria-label="Hapus ${escapeHtml(uom)} tidak utuh ${index + 1}"></button></li>
+    `).join('');
+}
+
+// Satu kali Add bisa menghasilkan beberapa baris: satu baris utuh (kalau ada) + satu baris
+// per unit tidak utuh. Pallet yang sama boleh di-Add lagi selama masih ada sisa.
 function handleAdd(){
     if (!selected) return;
 
-    const qty = parseFloat(q('#qty').value);
-    const qtySap = parseFloat(q('#qty-sap').value);
+    const qtyText = q('#qty').value.trim();
+    const qty = qtyText === '' ? 0 : parseFloat(qtyText);
     const remaining = remainingOf(selected);
     const remainingSap = remainingSapOf(selected);
     const palletEmpty = parseFloat(selected.stock_qty) <= 0;
     const bin = q('#bin').value.trim().toUpperCase();
+    const { uom_fisik: uom, uom_sap: uomSap } = selected;
 
-    if (cart.some(c => keyOf(c) === keyOf(selected))) {
-        toast('Pallet ini sudah ada di daftar. Hapus dulu kalau mau mengubah qty.', 'warning');
+    if (!(qty >= 0)) {
+        toast('Qty retur utuh tidak valid', 'warning');
         return;
     }
-    if (inputUnit === 'sap') {
-        if (!(qtySap > 0)) {
-            toast('Qty SAP retur harus lebih dari 0', 'warning');
-            return;
-        }
-        if (qtySap > remainingSap + 0.00005) {
-            toast(`Qty SAP retur maksimal ${formatQtySap(remainingSap)} ${selected.uom_sap}`, 'warning');
-            return;
-        }
-        if (!(qty > 0)) {
-            toast(`Qty terlalu kecil (kurang dari 0,001 ${selected.uom_fisik})`, 'warning');
-            return;
-        }
-    } else {
-        if (!(qty > 0)) {
-            toast('Qty retur harus lebih dari 0', 'warning');
-            return;
-        }
-        if (qty > remaining + 0.0005) {
-            toast(`Qty retur maksimal ${formatNumber(remaining)} ${selected.uom_fisik}`, 'warning');
-            return;
-        }
+    if (qty === 0 && partials.length === 0) {
+        toast(`Isi Qty Retur Utuh, atau tambahkan ${uom} tidak utuh`, 'warning');
+        return;
+    }
+    // Setiap unit tidak utuh dihitung 1 unit fisik.
+    if (qty + partials.length > remaining + 0.0005) {
+        toast(partials.length > 0
+            ? `Utuh + tidak utuh maksimal ${formatNumber(remaining)} ${uom} (sekarang ${formatNumber(qty)} + ${partials.length})`
+            : `Qty retur utuh maksimal ${formatNumber(remaining)} ${uom}`, 'warning');
+        return;
+    }
+
+    // Total dicek dalam qty SAP: unit tidak utuh dicatat dengan beratnya.
+    const wholeSap = qty > 0 ? wholeSapOf(qty) : 0;
+    const total = round(wholeSap + partials.reduce((sum, w) => sum + w, 0), QTY_SAP_DECIMALS);
+    if (total > remainingSap + 0.00005) {
+        toast(`Total retur ${formatQtySap(total)} ${uomSap} melebihi sisa ${formatQtySap(remainingSap)} ${uomSap}.`
+            + (partials.length > 0 ? ` Kurangi Qty Retur Utuh.` : ''), 'warning');
+        return;
     }
     if (palletEmpty && !bin) {
         toast('Pallet sudah kosong, bin wajib diisi', 'warning');
         return;
     }
 
-    cart.push({
+    const base = {
         item_code:     selected.item_code,
         description:   selected.description,
         exp_date:      selected.exp_date,
         pallet_number: Number(selected.pallet_number),
-        qty_actual:    qty,       // kalau input_unit 'sap' ini perkiraan, angka final dihitung server
-        uom_fisik:     selected.uom_fisik,
-        qty_sap:       qtySap,
-        uom_sap:       selected.uom_sap,
-        input_unit:    inputUnit,
+        uom_fisik:     uom,
+        uom_sap:       uomSap,
         bin:           palletEmpty ? bin : selected.stock_bin,
-    });
+    };
+
+    if (qty > 0) {
+        cart.push({ ...base, qty_actual: qty, qty_sap: wholeSap, input_unit: 'fisik' });
+    }
+    for (const weight of partials) {
+        cart.push({ ...base, qty_actual: 1, qty_sap: weight, input_unit: 'sap' });
+    }
 
     selectLine(null);
     renderCart();
@@ -397,7 +475,7 @@ function renderCart(){
     q('#cart-count').textContent = cart.length;
 
     if (cart.length === 0) {
-        q('#cart-body').innerHTML = emptyRowHtml(9, 'Belum ada pallet retur. Pilih pallet, isi qty, lalu klik Add.');
+        q('#cart-body').innerHTML = emptyRowHtml(10, 'Belum ada pallet retur. Pilih pallet, isi qty, lalu klik Add.');
         return;
     }
 
@@ -407,6 +485,7 @@ function renderCart(){
             <td class="wrap">${escapeHtml(row.description)}</td>
             <td>${escapeHtml(row.exp_date)}</td>
             <td class="num">${escapeHtml(row.pallet_number)}</td>
+            <td>${row.input_unit === 'sap' ? 'Tidak utuh (pallet baru)' : 'Utuh'}</td>
             <td class="num">${formatNumber(row.qty_actual)}</td>
             <td>${escapeHtml(row.uom_fisik)}</td>
             <td class="num">${formatQtySap(row.qty_sap)} ${escapeHtml(row.uom_sap)}</td>
@@ -434,7 +513,7 @@ async function handleSubmit(){
     const button = q('#btn-submit');
     button.disabled = true;
 
-    // Bentuk "object berisi array": satu dokumen referensi, banyak pallet.
+    // Bentuk "object berisi array": satu dokumen referensi, banyak baris.
     const payload = {
         reference_code: refCode,
         remark: q('#remark').value.trim(),
@@ -458,7 +537,8 @@ async function handleSubmit(){
         const result = await res.json();
 
         if (result.success) {
-            toast('Retur berhasil disimpan: ' + result.transaction_code, 'success');
+            // Pesan server menyebut nomor pallet sisa (unit tidak utuh), untuk label pallet fisiknya.
+            toast(result.message || 'Retur berhasil disimpan: ' + result.transaction_code, 'success');
             cart = [];
             q('#remark').value = '';
             renderCart();
