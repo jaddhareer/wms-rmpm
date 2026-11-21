@@ -81,7 +81,8 @@ CREATE TABLE stock (
 --               (OTHER = keluar karena alasan lain, mis. rusak; alasannya wajib di remark)
 --   MUTASI   -> source_bin = bin asal,             destination_bin = bin tujuan
 --               destination_pallet NULL = pallet utuh pindah bin;
---               diisi = qty_actual dari pallet_number digabung ke pallet itu (sudah ada di bin tujuan)
+--               diisi = qty_actual dari pallet_number digabung ke pallet itu (sudah ada di bin tujuan),
+--               atau pecah jadi pallet baru itu (remark 'Pallet baru')
 --   RETUR    -> source = destination dokumen OUTBOUND asal (PRODUKSI/QUALITY/OTHER),
 --               destination_bin = bin taruh balik, reference_code = kode OUTBOUND asal
 --               destination_pallet NULL = kembali ke pallet asal; diisi = unit tidak utuh (qty 1, qty_sap = berat),
@@ -106,7 +107,7 @@ CREATE TABLE transactions (
     source_bin        VARCHAR(20)  NULL,
     destination       VARCHAR(100) NULL,
     destination_bin   VARCHAR(20)  NULL,
-    destination_pallet INT UNSIGNED NULL, -- MUTASI gabung pallet / RETUR unit tidak utuh: nomor pallet tujuan (item & exp sama)
+    destination_pallet INT UNSIGNED NULL, -- MUTASI gabung / pecah pallet, RETUR unit tidak utuh: nomor pallet tujuan (item & exp sama)
 
     user_id     INT UNSIGNED NOT NULL,
     remark      VARCHAR(255) NULL,

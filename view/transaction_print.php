@@ -158,9 +158,13 @@
         <div class="doc-code"><?= e($code) ?></div>
     </div>
 
+    <p>Nomor Ref  :</p>
+    <p>SAP Doc. :</p>
+    <hr>
+    
     <dl class="info">
-        <dt>Tanggal</dt>     <dd><?= e(date('d/m/Y H:i', strtotime($head['created_at']))) ?></dd>
-        <dt>Dibuat oleh</dt> <dd><?= e($head['user_name'] ?? '-') ?></dd>
+        <dt>Tanggal :</dt>     <dd><?= e(date('d/m/Y H:i', strtotime($head['created_at']))) ?></dd>
+        <dt>Dibuat oleh :</dt> <dd><?= e($head['user_name'] ?? '-') ?></dd>
         <dt>Jumlah</dt>      <dd><?= count($rows) ?> pallet</dd>
         <?php if ($head['reference_code']): ?>
             <dt>Referensi</dt> <dd><?= e($head['reference_code']) ?></dd>
@@ -221,6 +225,9 @@
                 <?php endforeach; ?>
             </tbody>
         </table>
+        <p>Note : ...</p>
+        <p>.</p>
+        <p>.</p>
     </div>
 
     <div class="sig-section">

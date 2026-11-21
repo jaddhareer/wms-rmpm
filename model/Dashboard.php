@@ -12,8 +12,8 @@ class Dashboard {
     public const LOCATIONS = [
         'GUDANG_40' => ['label' => 'Gudang 40', 'capacity' => 369, 'racks' => ['A', 'B', 'C', 'D']],
         'GUDANG_50' => ['label' => 'Gudang 50', 'capacity' => 270,  'racks' => ['E', 'F']],
-        'FLOOR_40'  => ['label' => 'Floor 40',  'capacity' => 50,   'bins'  => ['FLOOR 40']],
-        'FLOOR_50'  => ['label' => 'Floor 50',  'capacity' => 20,   'bins'  => ['FLOOR 50']],
+        'FLOOR_40'  => ['label' => 'Floor 40',  'capacity' => 150,   'bins'  => ['FLOOR 40']],
+        'FLOOR_50'  => ['label' => 'Floor 50',  'capacity' => 60,   'bins'  => ['FLOOR 50']],
     ];
 
     // Bin yang memang tidak dihitung ke okupansi.
@@ -47,10 +47,22 @@ class Dashboard {
         return null;
     }
 
-    // Okupansi saat ini: jumlah pallet berisi (qty > 0) per lokasi.
-    // Dua pallet bertumpuk di satu bin tetap dihitung dua posisi pallet.
+    // Posisi pallet yang dipakai satu bin berisi $pallets pallet (qty > 0):
+    //   rak   -> 1 (COUNT DISTINCT bin): satu bin rak hanya muat satu pallet fisik; beberapa
+    //            pallet di sistem berarti barangnya campur di pallet yang sama.
+    //   floor -> $pallets (COUNT *): di lantai tiap pallet memakai tempatnya sendiri.
+    private static function positionsIn(string $key, int $pallets): int {
+        return empty(self::LOCATIONS[$key]['racks']) ? $pallets : 1;
+    }
+
+    // Okupansi saat ini: posisi pallet terpakai per lokasi (aturan hitungnya di positionsIn()).
     public function occupancy(): array {
-        $stmt = $this->conn->query('SELECT bin, COUNT(*) AS pallets FROM stock WHERE qty_actual > 0 GROUP BY bin');
+        $stmt = $this->conn->query(
+            'SELECT UPPER(TRIM(bin)) AS bin, COUNT(*) AS pallets
+             FROM stock
+             WHERE qty_actual > 0
+             GROUP BY UPPER(TRIM(bin))'
+        );
 
         $result = [];
         foreach (self::LOCATIONS as $key => $location) {
@@ -72,10 +84,11 @@ class Dashboard {
             $key = self::locationOf($bin);
 
             if ($key !== null) {
-                $result[$key]['pallets'] += $pallets;
+                $positions = self::positionsIn($key, $pallets);
+                $result[$key]['pallets'] += $positions;
                 $rack = substr($bin, 0, 1);
                 if (isset($result[$key]['racks'][$rack]) && !in_array($bin, self::LOCATIONS[$key]['bins'] ?? [], true)) {
-                    $result[$key]['racks'][$rack] += $pallets;
+                    $result[$key]['racks'][$rack] += $positions;
                 }
             } elseif (in_array($bin, self::EXCLUDED_BINS, true)) {
                 $excluded += $pallets;
@@ -105,21 +118,28 @@ class Dashboard {
     //
     //   INBOUND  -> qty bertambah, pallet ada di destination_bin
     //   OUTBOUND -> qty berkurang (bin tetap)
-    //   MUTASI   -> pallet pindah ke destination_bin; kalau destination_pallet diisi (gabung pallet):
+    //   MUTASI   -> pallet pindah ke destination_bin; kalau destination_pallet diisi (gabung / pecah pallet):
     //               qty berkurang dari pallet asal, bertambah di pallet tujuan (di destination_bin)
     //   RETUR    -> qty bertambah, pallet ada di destination_bin; kalau destination_pallet diisi (unit
     //               tidak utuh): qty bertambah di pallet sisa itu, pallet asal tidak berubah
+    //
+    // Yang dilacak adalah jumlah pallet berisi per bin; posisi per lokasi baru dihitung saat
+    // akhir hari dicatat, dengan aturan yang sama seperti okupansi saat ini (positionsIn()).
     public function occupancyTrend(int $days): array {
         $today = new DateTimeImmutable($this->conn->query('SELECT CURDATE()')->fetchColumn());
         $start = $today->modify('-' . ($days - 1) . ' day');
 
-        $counts = array_fill_keys(array_keys(self::LOCATIONS), 0);   // jumlah pallet berisi per lokasi saat ini (dalam putaran ulang)
+        $binPallets = [];                                             // "bin" => jumlah pallet berisi saat ini (dalam putaran ulang)
         $history = array_fill_keys(array_keys(self::LOCATIONS), array_fill(0, $days, 0));
         $pallets = [];                                                // "item|exp|pallet" => ['qty' => .., 'bin' => ..]
         $cursor = $start;                                             // hari pertama yang belum dicatat
 
         // Catat posisi akhir hari untuk semua hari sebelum $until (yang masih di rentang).
-        $flushUntil = function (DateTimeImmutable $until) use (&$cursor, &$history, &$counts, $start, $today) {
+        $flushUntil = function (DateTimeImmutable $until) use (&$cursor, &$history, &$binPallets, $start, $today) {
+            if ($cursor >= $until || $cursor > $today) {
+                return;
+            }
+            $counts = $this->positionsByLocation($binPallets);
             while ($cursor < $until && $cursor <= $today) {
                 $index = (int) $start->diff($cursor)->days;
                 foreach ($counts as $key => $n) {
@@ -149,7 +169,7 @@ class Dashboard {
                 case 'RETUR':
                     if ($row['destination_pallet'] !== null) {
                         // Unit tidak utuh: masuk pallet sisa, pallet asal tidak berubah.
-                        $this->addToPallet($pallets, $counts, $row, $qty);
+                        $this->addToPallet($pallets, $binPallets, $row, $qty);
                         break;
                     }
                     // fall through: retur biasa = qty kembali ke pallet asal, seperti INBOUND
@@ -165,14 +185,15 @@ class Dashboard {
                         $after['bin'] = $row['destination_bin'] ?: $after['bin'];
                         break;
                     }
-                    // Gabung pallet: pallet asal tetap di bin-nya, qty-nya pindah ke pallet tujuan.
+                    // Gabung / pecah pallet: pallet asal tetap di bin-nya, qty-nya pindah ke pallet tujuan
+                    // (pallet yang sudah ada, atau pallet baru hasil pecah).
                     $after['qty'] -= $qty;
-                    $this->addToPallet($pallets, $counts, $row, $qty);
+                    $this->addToPallet($pallets, $binPallets, $row, $qty);
                     break;
             }
 
-            $this->countPallet($counts, $before, -1);
-            $this->countPallet($counts, $after, +1);
+            $this->countPallet($binPallets, $before, -1);
+            $this->countPallet($binPallets, $after, +1);
             $pallets[$key] = $after;
         }
 
@@ -180,6 +201,7 @@ class Dashboard {
 
         // Cek silang: hasil putar ulang hari ini harus sama dengan tabel stock.
         // Kalau beda, berarti ada data stok yang berubah tanpa lewat transaksi.
+        $counts = $this->positionsByLocation($binPallets);
         $current = [];
         foreach ($this->occupancy()['locations'] as $location) {
             $current[$location['key']] = $location['pallets'];
@@ -211,27 +233,39 @@ class Dashboard {
     }
 
     // Putar ulang: tambah qty ke pallet tujuan baris ledger (destination_pallet, di destination_bin).
-    private function addToPallet(array &$pallets, array &$counts, array $row, float $qty): void {
+    private function addToPallet(array &$pallets, array &$binPallets, array $row, float $qty): void {
         $key = $row['item_code'] . '|' . $row['exp_date'] . '|' . $row['destination_pallet'];
         $before = $pallets[$key] ?? ['qty' => 0.0, 'bin' => null];
         $after = [
             'qty' => $before['qty'] + $qty,
             'bin' => $row['destination_bin'] ?: $before['bin'],
         ];
-        $this->countPallet($counts, $before, -1);
-        $this->countPallet($counts, $after, +1);
+        $this->countPallet($binPallets, $before, -1);
+        $this->countPallet($binPallets, $after, +1);
         $pallets[$key] = $after;
     }
 
-    // Tambah/kurangi hitungan lokasi untuk satu pallet, kalau pallet itu berisi dan lokasinya dihitung.
-    private function countPallet(array &$counts, array $pallet, int $delta): void {
+    // Tambah/kurangi jumlah pallet berisi di bin satu pallet, kalau pallet itu berisi dan lokasinya dihitung.
+    private function countPallet(array &$binPallets, array $pallet, int $delta): void {
         if ($pallet['qty'] <= 0.0005 || $pallet['bin'] === null) {
             return;
         }
-        $key = self::locationOf($pallet['bin']);
-        if ($key !== null) {
-            $counts[$key] += $delta;
+        $bin = strtoupper(trim($pallet['bin']));
+        if (self::locationOf($bin) !== null) {
+            $binPallets[$bin] = ($binPallets[$bin] ?? 0) + $delta;
         }
+    }
+
+    // Putar ulang: "bin" => jumlah pallet berisi -> posisi terpakai per lokasi.
+    private function positionsByLocation(array $binPallets): array {
+        $counts = array_fill_keys(array_keys(self::LOCATIONS), 0);
+        foreach ($binPallets as $bin => $n) {
+            if ($n > 0) {
+                $key = self::locationOf((string) $bin);
+                $counts[$key] += self::positionsIn($key, $n);
+            }
+        }
+        return $counts;
     }
 
     // Jumlah baris ledger INBOUND dan OUTBOUND per periode.

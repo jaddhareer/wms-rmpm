@@ -14,6 +14,10 @@ let selected = null;
 let targetBinPallets = [];
 let targetRequestId = 0;
 
+// Nilai pilihan Pallet Tujuan "Pallet baru" (sama dengan yang dibaca BinToBin.php):
+// sebagian isi pallet asal jadi pallet baru di target bin.
+const NEW_PALLET = 'new';
+
 // params dari router. Dibuka dari popup Stock Overview -> { item, exp, pallet }:
 // form langsung terisi pallet itu, operator tinggal mengisi Target Bin.
 export function bintobin(params = {}){
@@ -247,10 +251,18 @@ async function loadTargetPallets(){
     renderTarget();
 }
 
-// Qty lebih kecil dari isi pallet = pindah sebagian (wajib digabung ke pallet tujuan).
+// Qty lebih kecil dari isi pallet = pindah sebagian: bagian itu digabung ke pallet tujuan,
+// atau jadi pallet baru di target bin.
 function isPartial(){
     const qtyText = q('#qty').value;
     return Boolean(selected) && qtyText !== '' && Number(qtyText) < Number(selected.qty_actual) - 0.0005;
+}
+
+// Source dan Target Bin sama (mis. dua pallet di FLOOR 40): pindah / pecah tidak mengubah
+// apa pun, yang berlaku hanya gabung ke pallet lain di bin itu.
+function isSameBin(){
+    const sourceBin = q('#source-bin').value.trim().toUpperCase();
+    return sourceBin !== '' && sourceBin === q('#target-bin').value.trim().toUpperCase();
 }
 
 // Calon pallet tujuan: pallet item + exp yang sama di target bin, selain pallet asal.
@@ -280,11 +292,12 @@ function renderTarget(){
 
     const palletNumber = q('#pallet-number').value.trim();
     const partial = isPartial();
+    const sameBin = isSameBin(); // di bin yang sama hanya Gabung yang berlaku
     const options = [
         {
             value: '',
             label: palletNumber ? `Pindah utuh (pallet ${palletNumber} ikut pindah)` : 'Pindah utuh',
-            disabled: partial,
+            disabled: partial || sameBin,
         },
         ...targetCandidates().map(p => {
             const reason = mismatchReason(p);
@@ -294,13 +307,21 @@ function renderTarget(){
                 disabled: Boolean(reason),
             };
         }),
+        {
+            // Hanya untuk qty sebagian. Identitas diketik manual (isi pallet belum diketahui):
+            // tetap bisa dipilih, server yang memeriksa.
+            value: NEW_PALLET,
+            label: palletNumber ? `Pallet baru (pecah dari pallet ${palletNumber})` : 'Pallet baru (pecah)',
+            disabled: sameBin || (Boolean(selected) && !partial),
+        },
     ];
 
-    // Pilihan sebelumnya dipertahankan selama masih boleh. Kalau tidak: qty sebagian ->
-    // gabung ke pallet pertama yang boleh, qty utuh -> pindah utuh (perilaku Bin to Bin lama).
+    // Pilihan sebelumnya dipertahankan selama masih boleh. Kalau tidak: qty sebagian (atau
+    // bin yang sama) -> gabung ke pallet pertama yang boleh (kalau tidak ada: pallet baru),
+    // qty utuh -> pindah utuh (perilaku Bin to Bin lama).
     const allowed = options.filter(o => !o.disabled).map(o => o.value);
     let chosen = select.value;
-    if (!allowed.includes(chosen)) chosen = partial ? (allowed[0] ?? '') : '';
+    if (!allowed.includes(chosen)) chosen = (partial || sameBin) ? (allowed[0] ?? '') : '';
 
     select.innerHTML = options.map(o => `
         <option value="${escapeHtml(o.value)}"${o.disabled ? ' disabled' : ''}${o.value === chosen ? ' selected' : ''}>${escapeHtml(o.label)}</option>
@@ -324,15 +345,16 @@ function renderTargetHint(){
     const candidates   = targetCandidates();
     let text = '';
 
-    if (targetPallet) {
+    if (targetPallet === NEW_PALLET) {
+        text = `${qtyText === '' ? 'Sebagian isi' : `${formatNumber(qtyText)} ${selected?.uom_fisik ?? ''} dari`} pallet ${palletNumber} `
+            + `jadi pallet baru di ${targetBin || 'target bin'} (nomor pallet dibuat otomatis).`;
+    } else if (targetPallet) {
         text = qtyText === ''
             ? `Semua isi pallet ${palletNumber} ditumpuk ke pallet ${targetPallet}.`
             : `${formatNumber(qtyText)} ${selected?.uom_fisik ?? ''} dari pallet ${palletNumber} ditumpuk ke pallet ${targetPallet}`
                 + (isPartial() ? '.' : `, pallet ${palletNumber} jadi kosong.`);
-    } else if (isPartial()) {
-        text = targetBin
-            ? `Pindah sebagian harus digabung ke pallet item & exp yang sama. Di ${targetBin} tidak ada pallet yang bisa digabung.`
-            : 'Pindah sebagian: isi Target Bin yang berisi pallet item & exp yang sama.';
+    } else if (isSameBin()) {
+        text = `Source dan Target Bin sama: hanya bisa gabung ke pallet item & exp yang sama, dan di ${targetBin} tidak ada yang bisa digabung.`;
     } else if (candidates.length > 0) {
         text = `Di ${targetBin} ada pallet ${candidates.map(p => p.pallet_number).join(', ')} (item & exp sama). `
             + 'Pilih "Gabung" kalau isinya ditumpuk ke pallet itu.';
@@ -365,12 +387,13 @@ async function handleMove(){
         return;
     }
     if (isPartial() && !targetPallet) {
-        toast('Pindah sebagian harus digabung ke pallet di target bin. Pilih Pallet Tujuan.', 'warning');
+        toast('Pindah sebagian: pilih Pallet Tujuan (gabung ke pallet lain atau pallet baru).', 'warning');
         return;
     }
 
     // Identitas pallet + bin asal & tujuan + qty + pallet tujuan. Qty SAP dihitung server
-    // dari faktor pallet. qty kosong = semua isi pallet, target_pallet kosong = pindah utuh.
+    // dari faktor pallet. qty kosong = semua isi pallet. target_pallet: kosong = pindah utuh,
+    // nomor = gabung ke pallet itu, 'new' = pecah jadi pallet baru.
     const moveData = {
         source_bin:    sourceBin,
         target_bin:    targetBin,
@@ -378,7 +401,7 @@ async function handleMove(){
         exp_date:      expDate,
         pallet_number: palletNumber,
         qty_actual:    qtyText === '' ? null : qty,
-        target_pallet: targetPallet ? Number(targetPallet) : null,
+        target_pallet: targetPallet === NEW_PALLET ? NEW_PALLET : (targetPallet ? Number(targetPallet) : null),
     };
 
     const button = q('#btn-move');
@@ -403,6 +426,7 @@ async function handleMove(){
             q('#pallet-number').value = '';
             q('#qty').value = '';
             q('#qty-unit').textContent = '';
+            q('#target-pallet').value = ''; // kembali ke Pindah utuh
             selected = null;
             targetBinPallets = [];
             targetRequestId++; // isi target bin yang masih dimuat tidak dipakai lagi
