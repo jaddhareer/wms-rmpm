@@ -59,6 +59,20 @@ export function formatQtySap(value){
         : '';
 }
 
+// Total qty per UoM, mis. "150 ROLL, 20 BAG". Satu daftar bisa berisi beberapa item dengan
+// UoM berbeda, dan ROLL + BAG tidak bisa dijumlah, jadi dikelompokkan per UoM (urut sesuai
+// pertama kali muncul). Isi qty yang bukan angka (mis. sedang dikosongkan) dihitung 0.
+export function sumByUnit(rows, qtyKey, unitKey, format){
+    const totals = new Map(); // UoM -> total
+
+    for (const row of rows) {
+        const qty = parseFloat(row[qtyKey]);
+        totals.set(row[unitKey], (totals.get(row[unitKey]) ?? 0) + (Number.isFinite(qty) ? qty : 0));
+    }
+
+    return [...totals].map(([unit, total]) => `${format(total)} ${unit}`).join(', ');
+}
+
 // Satu pallet yang masih ada stoknya (item + exp + nomor pallet), atau null kalau sudah
 // habis / tidak ada. Dipakai halaman yang dibuka dari popup Stock Overview,
 // mis. #outbound?item=400010303&exp=2027-01-31&pallet=2.

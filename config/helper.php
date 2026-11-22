@@ -171,6 +171,18 @@ function canAccess(string $role, string $page): bool {
     return in_array($page, ROLE_PAGES[$role] ?? [], true);
 }
 
+// Aksi khusus yang bukan menu sendiri: tombol/isian di dalam menu yang sudah boleh dibuka.
+// Polanya sama dengan ROLE_PAGES (role tanpa baris di sini = tidak punya aksi khusus), dan
+// daftarnya juga dikirim ke browser saat login (canDo() di auth.js, hanya untuk tampilan).
+//   edit-exp = ganti exp date pallet di popup detail Stock Overview (StockRemark.php)
+const ROLE_ACTIONS = [
+    'admin' => ['edit-exp'],
+];
+
+function canDo(string $role, string $action): bool {
+    return in_array($action, ROLE_ACTIONS[$role] ?? [], true);
+}
+
 // Folder file sesi milik aplikasi ini (subfolder "wms-rmpm"), atau null = pakai folder
 // sesi bawaan PHP.
 //

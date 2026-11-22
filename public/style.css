@@ -664,6 +664,36 @@ td.pick-arrow::before { vertical-align: middle; }
 .pick-row:hover > td.pick-arrow { color: var(--accent-strong); }
 tbody tr.empty-row:hover > td { background: none; }
 
+/* Popup checklist (pilih beberapa pallet Outbound): klik baris = centang / lepas. */
+.check-row { cursor: pointer; }
+.check-row:hover > td { background: var(--accent-soft); }
+.check-row.is-checked > td { background: #ffe9c7; }
+th.check-cell, td.check-cell { width: 1%; padding-right: 4px; }
+.check-cell > input { display: block; }
+.check-summary { margin: 0; font-size: 14px; font-weight: 600; }
+
+/* Bagian bawah popup yang selalu terlihat walau daftar di atasnya panjang (mis. total
+   checklist + tombol Add). Margin & padding negatif = selebar popup, menempel ke tepi bawahnya
+   (padding #popup-box: 20px 24px, di HP 16px). */
+.popup-footer {
+    position: sticky;
+    bottom: -20px;
+    margin: 12px -24px -20px;
+    padding: 12px 24px 20px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+}
+.popup-footer > .form-actions { margin-top: 10px; }
+
+/* Isian di dalam baris tabel Daftar Pallet (Inbound: bin & remark, Outbound: qty).
+   Lebar minimum supaya tidak menyempit di tabel yang lebar; tabel bisa digeser di HP. */
+.cell-bin { min-width: 250px; }
+.cell-text { min-width: 180px; }
+.cell-target { min-width: 250px; }
+:where(td) > input.cell-qty { width: 110px; text-align: right; }
+:where(input).is-invalid { border-color: var(--danger); background: var(--danger-soft); }
+:where(input).is-invalid:focus { border-color: var(--danger); box-shadow: 0 0 0 3px rgba(198, 40, 40, .25); }
+
 .table-info { margin: 0 0 10px; font-size: 14px; color: var(--text-2); }
 
 .row-actions { display: flex; gap: 6px; }
@@ -996,6 +1026,7 @@ p.dash-note:empty { display: none; }
         max-height: calc(100dvh - 16px);
         padding: 16px;
     }
+    .popup-footer { bottom: -16px; margin: 12px -16px -16px; padding: 12px 16px 16px; }
 
     .login-form { padding: 22px; }
 

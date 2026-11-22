@@ -2,7 +2,7 @@ import { setContent, q, qAll } from "./utilities/tools.js";
 import { initRouter, navigateTo } from "./utilities/router.js";
 import { dashboard } from "./pages/dashboard.js";
 import { inbound, hasUnsubmitted as inboundUnsubmitted } from "./pages/Inbound.js";
-import { bintobin } from "./pages/bintobin.js";
+import { bintobin, hasUnsubmitted as bintobinUnsubmitted } from "./pages/bintobin.js";
 import { outbound, hasUnsubmitted as outboundUnsubmitted } from "./pages/outbound.js";
 import { retur, hasUnsubmitted as returUnsubmitted } from "./pages/retur.js";
 import { transactions } from "./pages/transactions.js";
@@ -173,7 +173,7 @@ let updateAvailable = false;
 // Daftar yang belum di-Submit di halaman MANA PUN, bukan hanya yang sedang tampil:
 // daftar Inbound tetap tersimpan walau operator sedang membuka menu lain.
 function hasUnsubmittedList(){
-    return inboundUnsubmitted() || outboundUnsubmitted() || returUnsubmitted();
+    return inboundUnsubmitted() || outboundUnsubmitted() || bintobinUnsubmitted() || returUnsubmitted();
 }
 
 // Isian form yang sudah diketik di halaman yang tampil (filter tidak dihitung).

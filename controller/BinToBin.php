@@ -1,6 +1,8 @@
 <?php
 
-// Bin to Bin, tiga cara:
+// Bin to Bin: satu atau beberapa pallet ke SATU target bin, satu dokumen MUTASI (satu kode,
+// satu baris ledger per pallet). Kalau satu pallet gagal, semuanya di-rollback.
+// Tiap pallet punya cara sendiri:
 //   1. Pallet utuh pindah bin (target_pallet kosong): baris stock hanya berganti bin.
 //   2. Gabung ke pallet lain (target_pallet = nomor pallet): sebagian/semua isi pallet asal
 //      ditumpuk ke pallet item + exp yang sama yang sudah ada di target bin. Pallet asal yang
@@ -14,9 +16,15 @@
 // sama: di lapangan itu satu pallet fisik berisi barang campur, di sini tiap item + exp tetap
 // punya baris sendiri supaya exp date, supplier, dan faktor konversinya tidak hilang.
 //
-// Body POST (JSON): { source_bin, target_bin, item_code, exp_date, pallet_number,
-//                     qty_actual (kosong = semua isi pallet),
-//                     target_pallet (kosong = pindah utuh, nomor = gabung, 'new' = pallet baru) }
+// Body POST (JSON):
+// {
+//   "target_bin": "A-01-A-02",
+//   "items": [ { source_bin, item_code, exp_date, pallet_number,
+//                qty_actual (kosong = semua isi pallet),
+//                target_pallet (kosong = pindah utuh, nomor = gabung, 'new' = pallet baru) }, ... ]
+// }
+// Bentuk lama (satu pallet: field item langsung di body + target_bin, tanpa "items") tetap
+// diterima, untuk tab yang belum dimuat ulang ke versi baru.
 
 header('Content-Type: application/json');
 
@@ -27,39 +35,63 @@ $userId = requireLogin('bintobin');
 
 $data = readJsonBody();
 
-$sourceBin    = strtoupper(sanitize($data['source_bin'] ?? ''));
-$targetBin    = strtoupper(sanitize($data['target_bin'] ?? ''));
-$itemCode     = sanitize($data['item_code'] ?? '');
-$expDate      = sanitize($data['exp_date'] ?? '');
-$palletNumber = (int) ($data['pallet_number'] ?? 0);
-$qtyInput     = ($data['qty_actual'] ?? '') === '' ? null : round((float) $data['qty_actual'], 3);
-$newPallet    = ($data['target_pallet'] ?? '') === 'new';
-$targetPallet = $newPallet ? 0 : (int) ($data['target_pallet'] ?? 0);
+$targetBin = strtoupper(sanitize($data['target_bin'] ?? ''));
+$items = is_array($data['items'] ?? null) ? $data['items'] : [$data];
 
-if ($itemCode === '' || $expDate === '' || $palletNumber === 0 || $sourceBin === '' || $targetBin === '') {
-    jsonResponse(['success' => false, 'error' => 'Semua field wajib diisi'], 400);
+if ($targetBin === '') {
+    jsonResponse(['success' => false, 'error' => 'Target bin wajib diisi'], 400);
+}
+if (count($items) === 0) {
+    jsonResponse(['success' => false, 'error' => 'Belum ada pallet yang dipilih'], 400);
 }
 
-// Di bin yang sama hanya gabung pallet yang masuk akal (pindah / pecah tidak mengubah apa pun).
-if ($sourceBin === $targetBin && $targetPallet === 0) {
-    jsonResponse(['success' => false, 'error' => 'Source bin dan target bin sama. Di bin yang sama hanya bisa Gabung ke pallet lain'], 400);
+// Isian per pallet dirapikan dulu. Pallet yang sama tidak boleh muncul dua kali.
+$moves = [];
+$seen = [];
+foreach ($items as $index => $item) {
+    $move = [
+        'source_bin'    => strtoupper(sanitize($item['source_bin'] ?? '')),
+        'item_code'     => sanitize($item['item_code'] ?? ''),
+        'exp_date'      => sanitize($item['exp_date'] ?? ''),
+        'pallet_number' => (int) ($item['pallet_number'] ?? 0),
+        'qty'           => ($item['qty_actual'] ?? '') === '' ? null : round((float) $item['qty_actual'], 3),
+        'new_pallet'    => ($item['target_pallet'] ?? '') === 'new',
+    ];
+    $move['target_pallet'] = $move['new_pallet'] ? 0 : (int) ($item['target_pallet'] ?? 0);
+
+    $key = "{$move['item_code']}|{$move['exp_date']}|{$move['pallet_number']}";
+    if (isset($seen[$key])) {
+        jsonResponse(['success' => false, 'error' => "Pallet {$move['pallet_number']} ({$move['item_code']}, exp {$move['exp_date']}) dipilih dua kali"], 400);
+    }
+    $seen[$key] = true;
+    $moves[] = $move;
 }
 
-if ($qtyInput !== null && $qtyInput <= 0) {
-    jsonResponse(['success' => false, 'error' => 'Quantity harus lebih dari 0'], 400);
-}
+// Pindahkan satu pallet (aturan 1-3 di atas) dan tulis satu baris ledger.
+// Mengembalikan ['message' => ..., 'kind' => 'move'|'merge'|'new', 'label' => pallet baru untuk label].
+// Pelanggaran aturan dilempar sebagai Exception (pemanggil menambah nomor baris & rollback).
+function movePallet(PDO $conn, string $transactionCode, int $userId, string $targetBin, array $m): array {
+    $sourceBin    = $m['source_bin'];
+    $itemCode     = $m['item_code'];
+    $expDate      = $m['exp_date'];
+    $palletNumber = $m['pallet_number'];
+    $qtyInput     = $m['qty'];
+    $newPallet    = $m['new_pallet'];
+    $targetPallet = $m['target_pallet'];
 
-if ($targetPallet === $palletNumber) {
-    jsonResponse(['success' => false, 'error' => 'Pallet tujuan tidak boleh sama dengan pallet asal'], 400);
-}
-
-$db = new Database();
-$conn = $db->getConnection();
-
-try {
-    $conn->beginTransaction();
-
-    $transactionCode = generateTxnId($conn, 'MUTASI');
+    if ($itemCode === '' || $expDate === '' || $palletNumber === 0 || $sourceBin === '') {
+        throw new Exception('Identitas pallet dan source bin wajib diisi');
+    }
+    // Di bin yang sama hanya gabung pallet yang masuk akal (pindah / pecah tidak mengubah apa pun).
+    if ($sourceBin === $targetBin && $targetPallet === 0) {
+        throw new Exception("Pallet $palletNumber: source bin dan target bin sama. Di bin yang sama hanya bisa Gabung ke pallet lain");
+    }
+    if ($qtyInput !== null && $qtyInput <= 0) {
+        throw new Exception("Pallet $palletNumber: quantity harus lebih dari 0");
+    }
+    if ($targetPallet === $palletNumber) {
+        throw new Exception("Pallet $palletNumber: pallet tujuan tidak boleh sama dengan pallet asal");
+    }
 
     $binToBin = new Stock($conn);
     $binToBin->setItemCode($itemCode);
@@ -102,11 +134,12 @@ try {
     $takesAll = abs($qty - $qtyAvailable) < 0.0005;
 
     if (!$target && !$takesAll && !$newPallet) {
-        throw new Exception("Pindah sebagian: pilih Pallet Tujuan (pallet baru, atau gabung ke pallet $itemCode exp $expDate di bin $targetBin), atau pindahkan pallet utuh");
+        throw new Exception("Pindah sebagian pallet $palletNumber: pilih Pallet Tujuan (pallet baru, atau gabung ke pallet $itemCode exp $expDate di bin $targetBin), atau pindahkan pallet utuh");
     }
 
     $destinationPallet = null; // nomor pallet tujuan di ledger (NULL = pallet utuh pindah bin)
     $remark = '';
+    $label = '';
 
     if (!$target && $takesAll) {
         // 1. Pallet utuh pindah bin (juga kalau "pallet baru" ternyata mengambil semua isi).
@@ -117,6 +150,7 @@ try {
 
         $qty = $stock['qty_actual'];
         $qtySap = $stock['qty_sap'];
+        $kind = 'move';
         $message = "Pallet $palletNumber ($itemCode, exp $expDate) dipindahkan dari $sourceBin ke $targetBin";
 
     } else {
@@ -172,6 +206,7 @@ try {
             }
 
             $destinationPallet = $targetPallet;
+            $kind = 'merge';
             $message = 'Qty ' . formatNumber($qty) . " dari pallet $palletNumber ($itemCode, exp $expDate) digabung ke pallet $targetPallet di $targetBin$rest";
 
         } else {
@@ -191,6 +226,8 @@ try {
             $split->stockin();
 
             $remark = 'Pallet baru';
+            $kind = 'new';
+            $label = "$itemCode exp $expDate pallet $destinationPallet";
             $message = 'Qty ' . formatNumber($qty) . " dari pallet $palletNumber ($itemCode, exp $expDate) jadi pallet baru $destinationPallet di $targetBin$rest";
         }
     }
@@ -212,7 +249,44 @@ try {
     $mutasi->setRemark($remark);
     $mutasi->save();
 
+    return ['message' => $message, 'kind' => $kind, 'label' => $label];
+}
+
+$db = new Database();
+$conn = $db->getConnection();
+
+try {
+    $conn->beginTransaction();
+
+    $transactionCode = generateTxnId($conn, 'MUTASI');
+    $multi = count($moves) > 1;
+
+    $results = [];
+    foreach ($moves as $index => $move) {
+        try {
+            $results[] = movePallet($conn, $transactionCode, $userId, $targetBin, $move);
+        } catch (Exception $e) {
+            // Nomor baris = urutan di tabel Pallet Dipindah, supaya operator tahu baris mana.
+            throw new Exception(($multi ? 'Baris ' . ($index + 1) . ': ' : '') . $e->getMessage());
+        }
+    }
+
     $conn->commit();
+
+    if (!$multi) {
+        $message = $results[0]['message'];
+    } else {
+        // Ringkasan per cara + nomor pallet baru (untuk label pallet fisiknya).
+        $count = fn($kind) => count(array_filter($results, fn($r) => $r['kind'] === $kind));
+        $parts = array_filter([
+            $count('move')  ? $count('move') . ' pindah utuh' : '',
+            $count('merge') ? $count('merge') . ' digabung' : '',
+            $count('new')   ? $count('new') . ' pallet baru' : '',
+        ]);
+        $labels = array_filter(array_column($results, 'label'));
+        $message = count($results) . " pallet ke $targetBin (" . implode(', ', $parts) . ')'
+            . ($labels ? '. Pallet baru: ' . implode('; ', $labels) : '');
+    }
 
     jsonResponse([
         'success' => true,

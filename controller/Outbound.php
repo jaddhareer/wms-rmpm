@@ -16,8 +16,11 @@ if (count($items) === 0) {
 $db = new Database();
 $conn = $db->getConnection();
 
+// Tujuan outbound, SAMA dengan pilihan "Outbound To" di public/pages/outbound.js (ubah keduanya).
 // OTHER = barang keluar karena alasan lain (mis. rusak). Alasannya wajib ditulis di remark.
-$allowedDestinations = ['PRODUKSI', 'QUALITY', 'OTHER'];
+// PRODUKSI sudah tidak dipakai untuk outbound baru, tapi tetap ada di ledger lama (dan Retur
+// dokumen lama tetap jalan, karena Retur membaca tujuannya dari ledger, bukan dari daftar ini).
+$allowedDestinations = ['FERMENTASI', 'DRYING', 'PACKAGING', 'PROPAGATION', 'QUALITY', 'OTHER'];
 
 try {
     $conn->beginTransaction();
@@ -43,7 +46,7 @@ try {
             throw new Exception("Baris $row: quantity harus lebih dari 0");
         }
         if (!in_array($destination, $allowedDestinations, true)) {
-            throw new Exception("Baris $row: tujuan harus PRODUKSI, QUALITY, atau OTHER");
+            throw new Exception("Baris $row: tujuan harus salah satu dari " . implode(', ', $allowedDestinations));
         }
         if ($destination === 'OTHER' && $remark === '') {
             throw new Exception("Baris $row: tujuan OTHER wajib diisi remark (alasan barang keluar)");

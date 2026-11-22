@@ -251,7 +251,7 @@ async function loadData(){
     }
 }
 
-// Asal & tujuan: bin kalau ada, kalau tidak nama supplier / PRODUKSI / QUALITY / OTHER.
+// Asal & tujuan: bin kalau ada, kalau tidak nama supplier / tujuan outbound (FERMENTASI, QUALITY, OTHER, ...).
 // MUTASI gabung pallet: tujuan = bin + pallet tujuan, mis. "A-01-B-01 (pallet 1)".
 function fromOf(row){ return row.source_bin || row.source || ''; }
 function toOf(row){

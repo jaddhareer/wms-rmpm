@@ -29,7 +29,7 @@ try {
         $itemCode  = sanitize($item['item_code'] ?? '');
         $expDate   = sanitize($item['exp_date'] ?? '');
         $source    = sanitize($item['source'] ?? '');
-        $bin       = strtoupper(sanitize($item['bin'] ?? '')) ?: 'STAGE';
+        $bin       = strtoupper(sanitize($item['bin'] ?? ''));
         $remark    = sanitize($item['remark'] ?? '');
         $qtyActual = (float) ($item['qty_actual'] ?? 0);
         $conversionFactor = (float) ($item['conversion_factor'] ?? 0);
@@ -37,8 +37,18 @@ try {
         if ($itemCode === '' || $expDate === '') {
             throw new Exception("Baris $row: item code dan expired date wajib diisi");
         }
+        // Supplier wajib (= stock.supplier, tidak bisa diubah setelah Inbound). Halaman Inbound
+        // memeriksa aturan yang sama saat Add.
+        if ($source === '') {
+            throw new Exception("Baris $row: supplier wajib diisi");
+        }
         if ($qtyActual <= 0) {
             throw new Exception("Baris $row: quantity harus lebih dari 0");
+        }
+        // Bin diisi per pallet di Daftar Pallet (tidak ada default STAGE lagi; STAGE tetap
+        // boleh kalau memang diisi). Halaman Inbound memeriksa aturan yang sama sebelum Submit.
+        if ($bin === '') {
+            throw new Exception("Baris $row: bin wajib diisi");
         }
 
         $material = new Material($conn);

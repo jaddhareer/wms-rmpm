@@ -4,7 +4,7 @@ import { toast } from "../utilities/toast.js";
 import { replaceParams } from "../utilities/router.js";
 import { binButtonsHtml } from "../utilities/binPicker.js";
 
-// Retur: barang dari PRODUKSI/QUALITY/OTHER kembali ke gudang, ke nomor pallet asalnya.
+// Retur: barang dari tujuan outbound (FERMENTASI, QUALITY, OTHER, ...) kembali ke gudang, ke nomor pallet asalnya.
 // Alur: muat dokumen OUTBOUND -> pilih pallet -> isi qty (dan bin kalau pallet sudah kosong)
 //       -> Add ke daftar -> Submit.
 // Per pallet ada dua isian:

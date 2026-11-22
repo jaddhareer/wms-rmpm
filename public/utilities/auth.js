@@ -9,7 +9,7 @@
 
 const API = 'controller/UsersController.php';
 
-let currentUser = null;         // { id, username, full_name, role, pages: [...] } atau null
+let currentUser = null;         // { id, username, full_name, role, pages: [...], actions: [...] } atau null
 let userChangeListener = null;  // dipasang main.js untuk memperbarui nama user di navbar
 let reloginPromise = null;      // popup login ulang yang sedang terbuka (dipakai bersama)
 let loadedVersion = null;       // versi tampilan yang sedang berjalan di tab ini
@@ -59,6 +59,13 @@ export function getCurrentUser(){
 // requireLogin('menu') di controller membalas 403.
 export function canOpen(page){
     return currentUser?.pages.includes(page) ?? false;
+}
+
+// true kalau role user yang login boleh menjalankan aksi khusus ini (daftar 'actions' dari
+// server = ROLE_ACTIONS di helper.php), mis. canDo('edit-exp'). Sama seperti canOpen(): hanya
+// untuk tampilan, penjaganya tetap di controller.
+export function canDo(action){
+    return currentUser?.actions?.includes(action) ?? false;
 }
 
 function setCurrentUser(user){

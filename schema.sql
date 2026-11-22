@@ -77,13 +77,15 @@ CREATE TABLE stock (
 --
 -- Pemetaan kolom source/destination per transaction_type:
 --   INBOUND  -> source = supplier,                 destination_bin = bin taruh
---   OUTBOUND -> source_bin = bin asal,             destination = 'PRODUKSI'/'QUALITY'/'OTHER'
+--   OUTBOUND -> source_bin = bin asal,             destination = 'FERMENTASI'/'DRYING'/'PACKAGING'/'PROPAGATION'/'QUALITY'/'OTHER' (lama: 'PRODUKSI')
 --               (OTHER = keluar karena alasan lain, mis. rusak; alasannya wajib di remark)
 --   MUTASI   -> source_bin = bin asal,             destination_bin = bin tujuan
 --               destination_pallet NULL = pallet utuh pindah bin;
 --               diisi = qty_actual dari pallet_number digabung ke pallet itu (sudah ada di bin tujuan),
 --               atau pecah jadi pallet baru itu (remark 'Pallet baru')
---   RETUR    -> source = destination dokumen OUTBOUND asal (PRODUKSI/QUALITY/OTHER),
+--               Edit exp date (StockRemark.php, admin) = 2 baris satu dokumen: keluar dari pallet exp lama
+--               (destination_bin NULL) + masuk ke pallet exp baru (source_bin NULL), remark 'Edit exp date: ...'
+--   RETUR    -> source = destination dokumen OUTBOUND asal (FERMENTASI/.../QUALITY/OTHER, lama: PRODUKSI),
 --               destination_bin = bin taruh balik, reference_code = kode OUTBOUND asal
 --               destination_pallet NULL = kembali ke pallet asal; diisi = unit tidak utuh (qty 1, qty_sap = berat),
 --               masuk pallet sisa itu, pallet_number tetap pallet asal di dokumen OUTBOUND

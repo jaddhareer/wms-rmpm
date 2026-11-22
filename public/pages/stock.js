@@ -1,7 +1,7 @@
 import { setContent, q, escapeHtml, debounce, formatNumber, formatQtySap, binDatalistHtml, downloadFile } from "../utilities/tools.js";
-import { apiFetch, canOpen } from "../utilities/auth.js";
+import { apiFetch, canOpen, canDo } from "../utilities/auth.js";
 import { toast } from "../utilities/toast.js";
-import { openPopup, closePopup } from "../utilities/popups.js";
+import { openPopup, closePopup, confirmDialog } from "../utilities/popups.js";
 import { paginationHtml } from "../utilities/pagination.js";
 import { navigateTo } from "../utilities/router.js";
 import { binButtonsHtml } from "../utilities/binPicker.js";
@@ -218,7 +218,9 @@ function renderInfo(p){
     q('#stock-info').textContent = `Menampilkan ${first}–${last} dari ${p.total} lot (item + exp date)`;
 }
 
-async function showLotDetail(itemCode, expDate){
+// closeIfEmpty: lot sudah tidak ada (mis. exp satu-satunya pallet baru saja diedit, atau
+// lot baru di luar filter) -> popup ditutup diam-diam, bukan pesan error.
+async function showLotDetail(itemCode, expDate, { closeIfEmpty = false } = {}){
     try {
         // Filter aktif ikut dikirim, supaya isi popup cocok dengan baris yang diklik.
         const params = new URLSearchParams(buildQuery(false));
@@ -228,6 +230,10 @@ async function showLotDetail(itemCode, expDate){
         const res = await apiFetch(`${API}?${params}`);
         const result = await res.json();
 
+        if (result.success && result.data.length === 0 && closeIfEmpty) {
+            closePopup();
+            return;
+        }
         if (!result.success || result.data.length === 0) {
             toast('Detail stok tidak ditemukan', 'error');
             return;
@@ -244,12 +250,14 @@ async function showLotDetail(itemCode, expDate){
             .filter(([page]) => canOpen(page));
 
         // Remark selalu ada: siapa pun yang membuka menu ini boleh memberi remark (StockRemark.php).
+        // Role dengan aksi 'edit-exp' (admin) melihat tombol "Edit": remark + exp date.
+        const editLabel = canDo('edit-exp') ? 'Edit' : 'Remark';
         const actionsHtml = (index) => `
             <td><div class="row-actions">
                 ${actions.map(([page, label, icon]) => `
                     <button type="button" class="btn-sm btn-soft" data-goto="${page}" data-index="${index}" data-icon="${icon}">${label}</button>
                 `).join('')}
-                <button type="button" class="btn-sm" data-remark="${index}" data-icon="edit">Remark</button>
+                <button type="button" class="btn-sm" data-remark="${index}" data-icon="edit">${editLabel}</button>
             </div></td>`;
 
         const box = openPopup(`
@@ -301,7 +309,7 @@ async function showLotDetail(itemCode, expDate){
         box.addEventListener('click', (e) => {
             const remarkButton = e.target.closest('[data-remark]');
             if (remarkButton) {
-                showRemarkForm(rows[Number(remarkButton.dataset.remark)]);
+                showEditForm(rows[Number(remarkButton.dataset.remark)]);
                 return;
             }
 
@@ -322,17 +330,26 @@ async function showLotDetail(itemCode, expDate){
     }
 }
 
-// Remark manual satu pallet (mis. di-reject QC). Remark lama diganti, dan perubahannya
-// tercatat di ledger sebagai MUTASI di bin yang sama. Popup ini menggantikan popup detail
-// lot; setelah Simpan / Batal, popup detail lot dibuka lagi dengan data terbaru.
-function showRemarkForm(pallet){
-    const backToLot = () => showLotDetail(pallet.item_code, pallet.exp_date);
+// Edit satu pallet: remark manual (mis. di-reject QC), dan untuk admin juga exp date (mis. staff
+// salah input exp saat Inbound). Perubahannya tercatat di ledger sebagai MUTASI (StockRemark.php).
+// Popup ini menggantikan popup detail lot; setelah Simpan / Batal, popup detail lot dibuka lagi
+// dengan data terbaru (lot exp baru kalau exp diedit).
+function showEditForm(pallet){
+    const editExp = canDo('edit-exp');
+    const backToLot = (expDate = pallet.exp_date) =>
+        showLotDetail(pallet.item_code, expDate, { closeIfEmpty: true });
 
     const box = openPopup(`
-        <h3>Remark Pallet ${escapeHtml(pallet.pallet_number)}</h3>
+        <h3>${editExp ? 'Edit' : 'Remark'} Pallet ${escapeHtml(pallet.pallet_number)}</h3>
         <p class="hint">${escapeHtml(pallet.item_code)} — ${escapeHtml(pallet.description)},
             exp ${escapeHtml(pallet.exp_date)}, bin ${escapeHtml(pallet.bin)}</p>
         <form class="form-stack">
+            ${editExp ? `
+                <label class="field"><span class="field-label">Exp Date</span>
+                    <input type="date" name="exp_date" value="${escapeHtml(pallet.exp_date)}" required>
+                    <small class="hint">Kalau diganti, isi pallet pindah ke nomor pallet baru untuk exp itu
+                        (label pallet perlu diganti). Tercatat sebagai MUTASI "Edit exp date".</small>
+                </label>` : ''}
             <label class="field"><span class="field-label">Remark</span>
                 <input name="remark" maxlength="240" autocomplete="off" value="${escapeHtml(pallet.remark)}"
                        placeholder="mis. REJECT QC - kemasan bocor">
@@ -350,12 +367,39 @@ function showRemarkForm(pallet){
     const errorBox = form.querySelector('.form-error');
     const button = form.querySelector('button[type="submit"]');
 
-    box.querySelector('.btn-cancel').addEventListener('click', backToLot);
+    box.querySelector('.btn-cancel').addEventListener('click', () => backToLot());
     form.elements.remark.focus();
 
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
         errorBox.textContent = '';
+
+        const remark = form.elements.remark.value.trim();
+        const newExp = editExp ? form.elements.exp_date.value : pallet.exp_date;
+        const expChanged = newExp !== pallet.exp_date;
+
+        if (!newExp) {
+            errorBox.textContent = 'Exp date wajib diisi';
+            return;
+        }
+        if (!expChanged && remark === String(pallet.remark ?? '').trim()) {
+            errorBox.textContent = editExp ? 'Tidak ada yang berubah' : 'Remark tidak berubah';
+            return;
+        }
+
+        // Exp diganti = nomor pallet ikut berubah: minta konfirmasi dulu (dialog terpisah,
+        // popup edit ini tetap terbuka kalau dibatalkan).
+        if (expChanged) {
+            const ok = await confirmDialog({
+                title: 'Ubah exp date?',
+                message: `Pallet ${pallet.pallet_number} (${pallet.item_code}): exp ${pallet.exp_date} → ${newExp}. `
+                    + 'Isi pallet pindah ke nomor pallet baru untuk exp itu, label pallet perlu diganti.',
+                confirmText: 'Ubah exp',
+                icon: 'edit',
+            });
+            if (!ok) return;
+        }
+
         button.disabled = true; // cegah submit dobel
 
         try {
@@ -366,15 +410,16 @@ function showRemarkForm(pallet){
                     item_code:     pallet.item_code,
                     exp_date:      pallet.exp_date,
                     pallet_number: pallet.pallet_number,
-                    remark:        form.elements.remark.value.trim(),
+                    remark:        remark,
+                    new_exp_date:  expChanged ? newExp : '',
                 }),
             });
             const result = await res.json().catch(() => ({}));
             if (!result.success) throw new Error(result.error || `HTTP ${res.status}`);
 
             toast(result.message, 'success');
-            loadData();  // kolom Remark di tabel ringkasan ikut berubah
-            backToLot();
+            loadData();  // kolom Remark / lot di tabel ringkasan ikut berubah
+            backToLot(result.exp_date ?? newExp);
         } catch (err) {
             errorBox.textContent = err.message; // textContent: aman tanpa escapeHtml
             button.disabled = false;

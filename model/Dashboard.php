@@ -119,7 +119,9 @@ class Dashboard {
     //   INBOUND  -> qty bertambah, pallet ada di destination_bin
     //   OUTBOUND -> qty berkurang (bin tetap)
     //   MUTASI   -> pallet pindah ke destination_bin; kalau destination_pallet diisi (gabung / pecah pallet):
-    //               qty berkurang dari pallet asal, bertambah di pallet tujuan (di destination_bin)
+    //               qty berkurang dari pallet asal, bertambah di pallet tujuan (di destination_bin).
+    //               Edit exp date (StockRemark.php) = 2 baris: destination_bin kosong -> qty keluar dari
+    //               pallet ini (exp lama); source_bin kosong -> qty masuk ke pallet ini (exp baru) di destination_bin
     //   RETUR    -> qty bertambah, pallet ada di destination_bin; kalau destination_pallet diisi (unit
     //               tidak utuh): qty bertambah di pallet sisa itu, pallet asal tidak berubah
     //
@@ -150,7 +152,7 @@ class Dashboard {
         };
 
         $stmt = $this->conn->query(
-            'SELECT item_code, exp_date, pallet_number, transaction_type, qty_actual, destination_bin,
+            'SELECT item_code, exp_date, pallet_number, transaction_type, qty_actual, source_bin, destination_bin,
                     destination_pallet, DATE(created_at) AS day
              FROM transactions
              ORDER BY created_at ASC, id ASC'
@@ -181,6 +183,17 @@ class Dashboard {
                     $after['qty'] -= $qty;
                     break;
                 case 'MUTASI':
+                    // Edit exp date: isi pallet exp lama keluar (baris tanpa bin tujuan) lalu masuk ke
+                    // pallet exp baru (baris tanpa bin asal). MUTASI lain selalu punya kedua bin.
+                    if (($row['destination_bin'] ?? '') === '') {
+                        $after['qty'] -= $qty;
+                        break;
+                    }
+                    if (($row['source_bin'] ?? '') === '') {
+                        $after['qty'] += $qty;
+                        $after['bin'] = $row['destination_bin'];
+                        break;
+                    }
                     if ($row['destination_pallet'] === null) {
                         $after['bin'] = $row['destination_bin'] ?: $after['bin'];
                         break;

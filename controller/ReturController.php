@@ -206,7 +206,7 @@ try {
         $ledger->setPalletNumber($palletNumber);
         $ledger->setQtyActual($qtyActual);
         $ledger->setQtySap($qtySap);
-        $ledger->setSource($line['destination']);   // PRODUKSI / QUALITY / OTHER, dari dokumen outbound
+        $ledger->setSource($line['destination']);   // tujuan dokumen outbound (FERMENTASI / ... / OTHER, lama: PRODUKSI)
         $ledger->setDestinationBin($finalBin);
         $ledger->setUserId($userId);
         $ledger->setRemark($remark);

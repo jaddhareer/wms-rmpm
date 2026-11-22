@@ -267,9 +267,13 @@ class UsersController {
         ];
     }
 
-    // Untuk login & me: ditambah daftar menu yang boleh dibuka (dipakai navbar).
+    // Untuk login & me: ditambah daftar menu yang boleh dibuka (dipakai navbar) dan
+    // aksi khusus role ini (ROLE_ACTIONS, mis. tombol edit exp date di Stock Overview).
     private function sessionUser(array $user): array {
-        return $this->publicUser($user) + ['pages' => ROLE_PAGES[$user['role']] ?? []];
+        return $this->publicUser($user) + [
+            'pages'   => ROLE_PAGES[$user['role']] ?? [],
+            'actions' => ROLE_ACTIONS[$user['role']] ?? [],
+        ];
     }
 }
 
